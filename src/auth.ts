@@ -1,10 +1,13 @@
-import * as http from 'http';
 import * as crypto from 'crypto';
 import { URL } from 'url';
 import open from 'open';
 import keytar from 'keytar';
 import axios from 'axios';
 import { Config } from './config.js';
+
+const POLLING_REDIRECT_URI = 'urn:woizzer:polling';
+const POLLING_TIMEOUT_MS = 10 * 60 * 1000;
+const POLLING_INTERVAL_MS = 2000;
 
 const KEYTAR_SERVICE = 'quinbook-mcp';
 
@@ -80,72 +83,68 @@ async function refreshTokens(cfg: Config, refreshToken: string): Promise<TokenSe
   return tokenSetFromResponse(res.data);
 }
 
-function awaitAuthorizationCode(cfg: Config): Promise<{ code: string; redirectUri: string }> {
-  return new Promise((resolve, reject) => {
-    const state = crypto.randomBytes(16).toString('hex');
-    let redirectUri = '';
+async function awaitViaPolling(cfg: Config): Promise<{ code: string; redirectUri: string }> {
+  const pollingToken = crypto.randomUUID();
+  const state = crypto.randomBytes(16).toString('hex');
 
-    const server = http.createServer((req, res) => {
-      try {
-        const url = new URL(req.url || '/', 'http://127.0.0.1');
-        if (url.pathname !== '/callback') {
-          res.writeHead(404).end();
-          return;
-        }
-        const code = url.searchParams.get('code');
-        const s = url.searchParams.get('state');
-        const error = url.searchParams.get('error');
+  const authUrl = new URL(`${cfg.baseUrl}/v1/auth/authorize`);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('client_id', cfg.clientId);
+  authUrl.searchParams.set('redirect_uri', POLLING_REDIRECT_URI);
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('auth_mode', 'user');
+  authUrl.searchParams.set('polling_token', pollingToken);
 
-        if (error) {
-          res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(`<html><body><h1>OAuth error</h1><pre>${error}</pre></body></html>`);
-          server.close();
-          reject(new Error(`OAuth error: ${error}`));
-          return;
-        }
-        if (!code || s !== state) {
-          res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end('<html><body><h1>Invalid OAuth callback</h1></body></html>');
-          server.close();
-          reject(new Error('Invalid OAuth callback (missing/invalid state)'));
-          return;
-        }
-
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(
-          '<html><body><h1>quinbook MCP — login complete</h1><p>You can close this window.</p></body></html>',
-        );
-        server.close();
-        resolve({ code, redirectUri });
-      } catch (e) {
-        reject(e as Error);
-      }
-    });
-
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const port = (server.address() as any).port;
-      redirectUri = `http://127.0.0.1:${port}/callback`;
-
-      const authUrl = new URL(`${cfg.baseUrl}/v1/auth/authorize`);
-      authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('client_id', cfg.clientId);
-      authUrl.searchParams.set('redirect_uri', redirectUri);
-      authUrl.searchParams.set('state', state);
-      authUrl.searchParams.set('auth_mode', 'user');
-
-      process.stderr.write(
-        `[quinbook-mcp] Listening on ${redirectUri}, opening browser: ${authUrl.toString()}\n`,
-      );
-      open(authUrl.toString()).catch((e) => {
-        process.stderr.write(`[quinbook-mcp] Failed to open browser: ${(e as Error).message}\n`);
-      });
-    });
+  process.stderr.write(
+    `[quinbook-mcp] Polling-mode login. Opening browser: ${authUrl.toString()}\n`,
+  );
+  open(authUrl.toString()).catch((e) => {
+    process.stderr.write(`[quinbook-mcp] Failed to open browser: ${(e as Error).message}\n`);
   });
+
+  const pollUrl = `${cfg.baseUrl}/v1/auth/poll`;
+  const deadline = Date.now() + POLLING_TIMEOUT_MS;
+  let attempt = 0;
+
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, attempt === 0 ? 1000 : POLLING_INTERVAL_MS));
+    attempt += 1;
+
+    const res = await axios.get(pollUrl, {
+      params: { polling_token: pollingToken },
+      headers: { 'User-Agent': cfg.userAgent, Accept: 'application/json' },
+      validateStatus: () => true,
+      timeout: 10_000,
+    });
+
+    if (res.status >= 500) {
+      process.stderr.write(`[quinbook-mcp] Poll server error ${res.status}, retrying…\n`);
+      continue;
+    }
+    if (res.status >= 400) {
+      throw new Error(`OAuth poll failed with status ${res.status}: ${JSON.stringify(res.data)}`);
+    }
+
+    const body = res.data;
+    if (body && body.status === 'pending') continue;
+
+    if (body && typeof body.code === 'string' && body.code.length > 0) {
+      const returnedState = typeof body.state === 'string' ? body.state : '';
+      if (returnedState && returnedState !== state) {
+        throw new Error('OAuth poll: state mismatch');
+      }
+      const redirectUri = typeof body.redirect_uri === 'string' ? body.redirect_uri : POLLING_REDIRECT_URI;
+      return { code: body.code, redirectUri };
+    }
+
+    throw new Error(`OAuth poll: unexpected response: ${JSON.stringify(body)}`);
+  }
+
+  throw new Error('OAuth poll timed out — login not completed within 10 minutes.');
 }
 
 async function interactiveLogin(cfg: Config): Promise<TokenSet> {
-  const { code, redirectUri } = await awaitAuthorizationCode(cfg);
+  const { code, redirectUri } = await awaitViaPolling(cfg);
   return exchangeCode(cfg, code, redirectUri);
 }
 
