@@ -2,37 +2,74 @@ import { z } from 'zod';
 import { defineTool, ToolDefinition } from './types.js';
 
 const ordersListInput = z.object({
-  search: z.string().optional().describe('Free-text search across order fields'),
-  start: z.number().int().min(0).default(0).describe('Pagination offset'),
-  length: z.number().int().min(1).max(1000).default(100).describe('Page size (max 1000)'),
-  filter_start: z.string().optional().describe('ISO datetime — earliest order/slot start'),
-  filter_end: z.string().optional().describe('ISO datetime — latest order/slot start'),
-  filter_field: z
-    .enum(['date_created', 'i_eventslot.start_date'])
-    .optional()
-    .describe('Which date column the filter_start/end applies to'),
-  filter_status: z.string().optional().describe('Order status filter (numeric or list)'),
-  filter_payment: z.string().optional().describe('Payment method filter (e.g. paypal, onsite, stripe)'),
-  only_nonbinding: z.boolean().optional().describe('If true, only return non-binding reservations'),
+  search: z.string().optional().describe('Free-text search (customer name, order number, etc.)'),
+  offset: z.number().int().min(0).default(0).describe('Pagination offset'),
+  limit: z.number().int().min(1).max(100).default(50).describe('Page size (max 100)'),
+  status: z.string().optional().describe('Filter by order status'),
+  paymentHandler: z.string().optional().describe('Filter by payment handler (e.g. paypal, stripe, onsite)'),
+  dateFrom: z.string().optional().describe('ISO 8601 — created after this date'),
+  dateTo: z.string().optional().describe('ISO 8601 — created before this date'),
+  sort: z.enum(['created_at', 'service_at', 'total']).optional().describe('Sort field'),
+  direction: z.enum(['asc', 'desc']).optional().describe('Sort direction'),
+  iEvent: z.number().int().positive().optional().describe('Filter by event id'),
+  iSku: z.number().int().positive().optional().describe('Filter by SKU id'),
+  nonbinding: z.boolean().optional().describe('Only non-binding (reservation) orders'),
 });
 
 const ordersList = defineTool({
   name: 'orders_list',
   description:
-    'List orders for the authenticated company with filters and pagination. Use this for searches like "all bookings last week" or "orders with status X".',
+    'List orders for the authenticated company (V2). Supports search, status/payment/event filters, date range and sorting.',
   inputSchema: ordersListInput,
-  handler: async (input, api) => api.get('/v1/order', input),
+  handler: async (input, api) => api.get('/v2/order', input),
 });
 
 const ordersGetInput = z.object({
-  i_order: z.number().int().positive().describe('Order id'),
+  iOrder: z.number().int().positive().describe('Order id'),
 });
 
 const ordersGet = defineTool({
   name: 'orders_get',
-  description: 'Fetch a single order by id, including items, payments and customer.',
+  description: 'Fetch a single order by id (V2), including items, payments, customer.',
   inputSchema: ordersGetInput,
-  handler: async (input, api) => api.get(`/v1/order/${input.i_order}`),
+  handler: async (input, api) => api.get(`/v2/order/${input.iOrder}`),
 });
 
-export const orderTools: ToolDefinition[] = [ordersList, ordersGet];
+const cartListInput = z.object({});
+
+const cartList = defineTool({
+  name: 'orders_cart_list',
+  description: 'List all open (non-expired, non-checked-out) carts of the authenticated user.',
+  inputSchema: cartListInput,
+  handler: async (_input, api) => api.get('/v2/order/cart'),
+});
+
+const cartGetInput = z.object({
+  id: z.string().describe('Cart id'),
+});
+
+const cartGet = defineTool({
+  name: 'orders_cart_get',
+  description: 'Fetch a single cart by id, including items and applied coupons.',
+  inputSchema: cartGetInput,
+  handler: async (input, api) => api.get(`/v2/order/cart/${input.id}`),
+});
+
+const cartCalculateInput = z.object({
+  id: z.string().describe('Cart id'),
+});
+
+const cartCalculate = defineTool({
+  name: 'orders_cart_calculate',
+  description: 'Re-calculate prices and totals for a cart (read-only — does not persist).',
+  inputSchema: cartCalculateInput,
+  handler: async (input, api) => api.get(`/v2/order/cart/${input.id}/calculate`),
+});
+
+export const orderTools: ToolDefinition[] = [
+  ordersList,
+  ordersGet,
+  cartList,
+  cartGet,
+  cartCalculate,
+];

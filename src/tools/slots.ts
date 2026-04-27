@@ -41,4 +41,19 @@ const slotsEvent = defineTool({
   },
 });
 
-export const slotTools: ToolDefinition[] = [slotsCalendar, slotsEvent];
+const slotsGetInput = z.object({
+  id: z.number().int().positive().describe('EventSlot id'),
+  date: isoDate.optional().describe('Optional date (YYYY-MM-DD) — disambiguates recurring slot patterns'),
+});
+
+const slotsGet = defineTool({
+  name: 'slots_get',
+  description: 'Fetch a single slot by id (optionally restricted to a date).',
+  inputSchema: slotsGetInput,
+  handler: async (input, api) => {
+    const path = input.date ? `/v1/slots/${input.id}/${input.date}` : `/v1/slots/${input.id}`;
+    return api.get(path);
+  },
+});
+
+export const slotTools: ToolDefinition[] = [slotsCalendar, slotsEvent, slotsGet];

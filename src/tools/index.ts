@@ -1,10 +1,10 @@
 import { ToolDefinition } from './types.js';
-import { orderTools } from './orders.js';
 import { slotTools } from './slots.js';
-import { statisticsTools } from './statistics.js';
+import { orderTools } from './orders.js';
+import { couponTools } from './coupons.js';
 
 export const allTools: ToolDefinition[] = [
-  ...orderTools,
   ...slotTools,
-  ...statisticsTools,
+  ...orderTools,
+  ...couponTools,
 ];

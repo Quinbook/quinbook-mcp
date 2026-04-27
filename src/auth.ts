@@ -80,14 +80,11 @@ async function refreshTokens(cfg: Config, refreshToken: string): Promise<TokenSe
   return tokenSetFromResponse(res.data);
 }
 
-interface LoopbackResult {
-  code: string;
-  state: string;
-  redirectUri: string;
-}
-
-function startLoopbackServer(expectedState: string): Promise<LoopbackResult> {
+function awaitAuthorizationCode(cfg: Config): Promise<{ code: string; redirectUri: string }> {
   return new Promise((resolve, reject) => {
+    const state = crypto.randomBytes(16).toString('hex');
+    let redirectUri = '';
+
     const server = http.createServer((req, res) => {
       try {
         const url = new URL(req.url || '/', 'http://127.0.0.1');
@@ -96,63 +93,60 @@ function startLoopbackServer(expectedState: string): Promise<LoopbackResult> {
           return;
         }
         const code = url.searchParams.get('code');
-        const state = url.searchParams.get('state');
+        const s = url.searchParams.get('state');
         const error = url.searchParams.get('error');
 
         if (error) {
-          res.writeHead(400, { 'Content-Type': 'text/html' });
+          res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end(`<html><body><h1>OAuth error</h1><pre>${error}</pre></body></html>`);
           server.close();
           reject(new Error(`OAuth error: ${error}`));
           return;
         }
-        if (!code || !state || state !== expectedState) {
-          res.writeHead(400, { 'Content-Type': 'text/html' });
+        if (!code || s !== state) {
+          res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
           res.end('<html><body><h1>Invalid OAuth callback</h1></body></html>');
           server.close();
           reject(new Error('Invalid OAuth callback (missing/invalid state)'));
           return;
         }
 
-        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(
           '<html><body><h1>quinbook MCP — login complete</h1><p>You can close this window.</p></body></html>',
         );
-        const port = (server.address() as any).port;
         server.close();
-        resolve({ code, state, redirectUri: `http://127.0.0.1:${port}/callback` });
+        resolve({ code, redirectUri });
       } catch (e) {
         reject(e as Error);
       }
     });
+
     server.on('error', reject);
-    server.listen(0, '127.0.0.1');
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as any).port;
+      redirectUri = `http://127.0.0.1:${port}/callback`;
+
+      const authUrl = new URL(`${cfg.baseUrl}/v1/auth/authorize`);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', cfg.clientId);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('auth_mode', 'user');
+
+      process.stderr.write(
+        `[quinbook-mcp] Listening on ${redirectUri}, opening browser: ${authUrl.toString()}\n`,
+      );
+      open(authUrl.toString()).catch((e) => {
+        process.stderr.write(`[quinbook-mcp] Failed to open browser: ${(e as Error).message}\n`);
+      });
+    });
   });
 }
 
 async function interactiveLogin(cfg: Config): Promise<TokenSet> {
-  const state = crypto.randomBytes(16).toString('hex');
-
-  const tempServer = http.createServer();
-  await new Promise<void>((resolve) => tempServer.listen(0, '127.0.0.1', resolve));
-  const port = (tempServer.address() as any).port;
-  tempServer.close();
-  const redirectUri = `http://127.0.0.1:${port}/callback`;
-
-  const loopback = startLoopbackServer(state);
-
-  const authUrl = new URL(`${cfg.baseUrl}/v1/auth/authorize`);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('client_id', cfg.clientId);
-  authUrl.searchParams.set('redirect_uri', redirectUri);
-  authUrl.searchParams.set('state', state);
-  authUrl.searchParams.set('auth_mode', 'user');
-
-  process.stderr.write(`[quinbook-mcp] Opening browser for OAuth login: ${authUrl.toString()}\n`);
-  await open(authUrl.toString());
-
-  const result = await loopback;
-  return exchangeCode(cfg, result.code, redirectUri);
+  const { code, redirectUri } = await awaitAuthorizationCode(cfg);
+  return exchangeCode(cfg, code, redirectUri);
 }
 
 export class TokenManager {

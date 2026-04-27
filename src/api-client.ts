@@ -46,7 +46,14 @@ export class ApiClient {
     await this.limiter.acquire();
     const token = await this.tokens.getAccessToken();
     const headers = { ...(req.headers || {}), Authorization: `Bearer ${token}` };
+    if (process.env.QUINBOOK_DEBUG) {
+      const safeHeaders = { ...headers, Authorization: 'Bearer ***' };
+      process.stderr.write(`[api] ${req.method} ${req.url} headers=${JSON.stringify(safeHeaders)}\n`);
+    }
     const res = await this.http.request<T>({ ...req, headers });
+    if (process.env.QUINBOOK_DEBUG) {
+      process.stderr.write(`[api] ${req.method} ${req.url} → ${res.status} req-headers-sent=${JSON.stringify(res.config.headers)}\n`);
+    }
 
     if (res.status === 401 && attempt === 0) {
       await this.tokens.forceRefresh();
