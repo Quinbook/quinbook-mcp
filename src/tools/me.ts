@@ -52,7 +52,7 @@ const meCompanies = defineTool({
 });
 
 const meSwitchCompanyInput = z.object({
-  iCompany: z.number().int().positive().describe('Target company id (i_customer of the company)'),
+  iCompany: z.coerce.number().int().positive().describe('Target company id (i_customer of the company)'),
 });
 
 function buildSwitchCompany(tokens: TokenManager): ToolDefinition {

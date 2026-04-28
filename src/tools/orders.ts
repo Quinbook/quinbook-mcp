@@ -3,16 +3,16 @@ import { defineTool, ToolDefinition } from './types.js';
 
 const ordersListInput = z.object({
   search: z.string().optional().describe('Free-text search (customer name, order number, etc.)'),
-  offset: z.number().int().min(0).default(0).describe('Pagination offset'),
-  limit: z.number().int().min(1).max(100).default(50).describe('Page size (max 100)'),
+  offset: z.coerce.number().int().min(0).default(0).describe('Pagination offset'),
+  limit: z.coerce.number().int().min(1).max(100).default(50).describe('Page size (max 100)'),
   status: z.string().optional().describe('Filter by order status'),
   paymentHandler: z.string().optional().describe('Filter by payment handler (e.g. paypal, stripe, onsite)'),
   dateFrom: z.string().optional().describe('ISO 8601 — created after this date'),
   dateTo: z.string().optional().describe('ISO 8601 — created before this date'),
   sort: z.enum(['created_at', 'service_at', 'total']).optional().describe('Sort field'),
   direction: z.enum(['asc', 'desc']).optional().describe('Sort direction'),
-  iEvent: z.number().int().positive().optional().describe('Filter by event id'),
-  iSku: z.number().int().positive().optional().describe('Filter by SKU id'),
+  iEvent: z.coerce.number().int().positive().optional().describe('Filter by event id'),
+  iSku: z.coerce.number().int().positive().optional().describe('Filter by SKU id'),
   nonbinding: z.boolean().optional().describe('Only non-binding (reservation) orders'),
 });
 
@@ -25,7 +25,7 @@ const ordersList = defineTool({
 });
 
 const ordersGetInput = z.object({
-  iOrder: z.number().int().positive().describe('Order id'),
+  iOrder: z.coerce.number().int().positive().describe('Order id'),
 });
 
 const ordersGet = defineTool({

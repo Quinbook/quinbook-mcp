@@ -9,7 +9,7 @@ const slotsCalendarInput = z.object({
   date: isoDate.describe('Calendar date (YYYY-MM-DD)'),
   lang: z.string().default('en').describe('Language code for translated fields'),
   timezone: z.string().default('Europe/Berlin').describe('IANA timezone for date interpretation'),
-  ievent: z.number().int().positive().optional().describe('Restrict to a specific event id'),
+  ievent: z.coerce.number().int().positive().optional().describe('Restrict to a specific event id'),
   onlyfree: z.boolean().optional().describe('If true, only return slots with free capacity'),
 });
 
@@ -25,7 +25,7 @@ const slotsCalendar = defineTool({
 });
 
 const slotsEventInput = z.object({
-  ievent: z.number().int().positive().describe('Event id'),
+  ievent: z.coerce.number().int().positive().describe('Event id'),
   date: isoDate.describe('Date (YYYY-MM-DD)'),
   lang: z.string().default('en'),
   timezone: z.string().default('Europe/Berlin'),
@@ -42,7 +42,7 @@ const slotsEvent = defineTool({
 });
 
 const slotsGetInput = z.object({
-  id: z.number().int().positive().describe('EventSlot id'),
+  id: z.coerce.number().int().positive().describe('EventSlot id'),
   date: isoDate.optional().describe('Optional date (YYYY-MM-DD) — disambiguates recurring slot patterns'),
 });
 

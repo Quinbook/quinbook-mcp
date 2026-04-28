@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineTool, ToolDefinition } from './types.js';
 
 const couponsGetInput = z.object({
-  id: z.number().int().positive().describe('Coupon id'),
+  id: z.coerce.number().int().positive().describe('Coupon id'),
 });
 
 const couponsGet = defineTool({
@@ -24,7 +24,7 @@ const couponsFind = defineTool({
 });
 
 const couponsUsedInput = z.object({
-  iCoupon: z.number().int().positive().describe('Coupon id'),
+  iCoupon: z.coerce.number().int().positive().describe('Coupon id'),
 });
 
 const couponsUsed = defineTool({

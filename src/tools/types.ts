@@ -7,7 +7,7 @@ import { ApiClient } from '../api-client.js';
  * description of the call it WOULD make instead of performing it.
  */
 export const dryRunField = z
-  .boolean()
+  .coerce.boolean()
   .default(true)
   .describe(
     'Default true. When true, the tool returns the planned API call (method, url, body) without executing it. Set to false to actually perform the write. Always show the dryRun preview to the user and obtain confirmation before re-running with dryRun=false.',

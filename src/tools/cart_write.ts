@@ -5,20 +5,15 @@ const isoDateTime = z.string().describe('ISO 8601 datetime, e.g. 2026-04-30T20:3
 
 // ── cart_add_item ─────────────────────────────────────────────
 const cartAddItemInput = z.object({
-  iSku: z.number().int().positive().describe('SKU id to add'),
-  quantity: z.number().int().min(1).max(9999).describe('Quantity'),
-  iCart: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .describe('Cart id. If omitted, the most recent open cart is used or a new one is created.'),
+  iSku: z.coerce.number().int().positive().describe('SKU id to add'),
+  quantity: z.coerce.number().int().min(1).max(9999).describe('Quantity'),
+  iCart: z.coerce.number().int().positive().optional().describe('Cart id. If omitted, the most recent open cart is used or a new one is created.'),
   slotStart: isoDateTime.optional().describe('Slot start time (for time-based products)'),
   slotEnd: isoDateTime.optional().describe('Slot end time (for time-based products)'),
-  iEvent: z.number().int().positive().optional().describe('Event id (for event-based products)'),
-  iEventSlot: z.number().int().positive().optional().describe('EventSlot id (for slot-based bookings)'),
+  iEvent: z.coerce.number().int().positive().optional().describe('Event id (for event-based products)'),
+  iEventSlot: z.coerce.number().int().positive().optional().describe('EventSlot id (for slot-based bookings)'),
   attributes: z.string().optional().describe('Optional JSON attributes (language, nopicture, digital_value, …)'),
-  manualAdjustment: z.number().optional().describe('Optional manual price adjustment'),
+  manualAdjustment: z.coerce.number().optional().describe('Optional manual price adjustment'),
   manualAdjustmentNotice: z.string().optional().describe('Reason for manual adjustment'),
   dryRun: dryRunField,
 });
@@ -37,14 +32,14 @@ const cartAddItem = defineTool({
 
 // ── cart_patch_item ───────────────────────────────────────────
 const cartPatchItemInput = z.object({
-  iCart: z.number().int().positive().describe('Cart id'),
-  iCartItem: z.number().int().positive().describe('Cart item id'),
-  quantity: z.number().int().min(0).max(9999).optional().describe('New quantity (0 removes the item)'),
+  iCart: z.coerce.number().int().positive().describe('Cart id'),
+  iCartItem: z.coerce.number().int().positive().describe('Cart item id'),
+  quantity: z.coerce.number().int().min(0).max(9999).optional().describe('New quantity (0 removes the item)'),
   slotStart: isoDateTime.optional(),
   slotEnd: isoDateTime.optional(),
-  iEventSlot: z.number().int().positive().optional(),
+  iEventSlot: z.coerce.number().int().positive().optional(),
   attributes: z.string().optional(),
-  manualAdjustment: z.number().optional(),
+  manualAdjustment: z.coerce.number().optional(),
   manualAdjustmentNotice: z.string().optional(),
   dryRun: dryRunField,
 });
@@ -64,8 +59,8 @@ const cartPatchItem = defineTool({
 
 // ── cart_remove_item ──────────────────────────────────────────
 const cartRemoveItemInput = z.object({
-  iCart: z.number().int().positive(),
-  iCartItem: z.number().int().positive(),
+  iCart: z.coerce.number().int().positive(),
+  iCartItem: z.coerce.number().int().positive(),
   dryRun: dryRunField,
 });
 
@@ -82,8 +77,8 @@ const cartRemoveItem = defineTool({
 
 // ── cart_apply_coupon ─────────────────────────────────────────
 const cartApplyCouponInput = z.object({
-  iCart: z.number().int().positive(),
-  iCoupon: z.number().int().positive().describe('Coupon id (use coupons_find first to get the id from a code)'),
+  iCart: z.coerce.number().int().positive(),
+  iCoupon: z.coerce.number().int().positive().describe('Coupon id (use coupons_find first to get the id from a code)'),
   dryRun: dryRunField,
 });
 
@@ -101,8 +96,8 @@ const cartApplyCoupon = defineTool({
 
 // ── cart_remove_coupon ────────────────────────────────────────
 const cartRemoveCouponInput = z.object({
-  iCart: z.number().int().positive(),
-  iCartCoupon: z.number().int().positive().describe('Cart coupon id (the iCartCoupon from cart_get response, NOT the coupon id)'),
+  iCart: z.coerce.number().int().positive(),
+  iCartCoupon: z.coerce.number().int().positive().describe('Cart coupon id (the iCartCoupon from cart_get response, NOT the coupon id)'),
   dryRun: dryRunField,
 });
 
@@ -119,7 +114,7 @@ const cartRemoveCoupon = defineTool({
 
 // ── cart_delete ───────────────────────────────────────────────
 const cartDeleteInput = z.object({
-  iCart: z.number().int().positive(),
+  iCart: z.coerce.number().int().positive(),
   dryRun: dryRunField,
 });
 
@@ -136,7 +131,7 @@ const cartDelete = defineTool({
 
 // ── cart_checkout ─────────────────────────────────────────────
 const checkoutCustomer = z.object({
-  iCustomer: z.number().int().positive().optional().describe('Existing customer id (omit to create new)'),
+  iCustomer: z.coerce.number().int().positive().optional().describe('Existing customer id (omit to create new)'),
   emailAddress: z.string().email().optional(),
   gender: z.string().optional(),
   companyName: z.string().optional(),
@@ -156,9 +151,9 @@ const checkoutCustomer = z.object({
 });
 
 const cartCheckoutInput = z.object({
-  iCart: z.number().int().positive(),
+  iCart: z.coerce.number().int().positive(),
   customer: checkoutCustomer.describe('Customer data — supply iCustomer for existing user, or full fields to create one'),
-  iOrder: z.number().int().positive().optional().describe('If set, updates (adopts) this existing order instead of creating a new one'),
+  iOrder: z.coerce.number().int().positive().optional().describe('If set, updates (adopts) this existing order instead of creating a new one'),
   paymentHandler: z.string().optional().describe('Override payment handler (e.g. onsite, transfer, stripe_card). If omitted, uses cart default.'),
   invoiceInfo: z.string().optional(),
   customerInfo: z.string().optional(),

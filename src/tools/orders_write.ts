@@ -5,7 +5,7 @@ const isoDateTime = z.string().describe('ISO 8601 datetime');
 
 // ── orders_to_cart ────────────────────────────────────────────
 const ordersToCartInput = z.object({
-  iOrder: z.number().int().positive().describe('Order id to copy into a new cart'),
+  iOrder: z.coerce.number().int().positive().describe('Order id to copy into a new cart'),
   dryRun: dryRunField,
 });
 
@@ -23,7 +23,7 @@ const ordersToCart = defineTool({
 
 // ── orders_cancel ─────────────────────────────────────────────
 const ordersCancelInput = z.object({
-  iOrder: z.number().int().positive(),
+  iOrder: z.coerce.number().int().positive(),
   refundMethod: z
     .enum(['online', 'coupon', 'transfer', 'onsite', 'cash', 'none'])
     .optional()
@@ -33,7 +33,7 @@ const ordersCancelInput = z.object({
     .optional()
     .describe('Use "overpayed" to only refund the overpaid amount (partial refund).'),
   reason: z.string().optional().describe('Cancellation reason (stored in audit log)'),
-  fee: z.number().optional().describe('Cancellation fee to deduct from refund amount'),
+  fee: z.coerce.number().optional().describe('Cancellation fee to deduct from refund amount'),
   reference: z.string().optional().describe('Payment reference (e.g. bank transfer id)'),
   dryRun: dryRunField,
 });
@@ -53,8 +53,8 @@ const ordersCancel = defineTool({
 
 // ── orders_record_payment ─────────────────────────────────────
 const ordersRecordPaymentInput = z.object({
-  iOrder: z.number().int().positive(),
-  amount: z.number().positive().describe('Payment amount in order currency, must be > 0'),
+  iOrder: z.coerce.number().int().positive(),
+  amount: z.coerce.number().positive().describe('Payment amount in order currency, must be > 0'),
   paymentHandler: z
     .string()
     .describe('Offline handler only: onsite, transfer, cash, izettle, sumup, payleven, pos_card, pos_cash, …'),
@@ -77,8 +77,8 @@ const ordersRecordPayment = defineTool({
 
 // ── orders_refund_payment ─────────────────────────────────────
 const ordersRefundPaymentInput = z.object({
-  iOrder: z.number().int().positive(),
-  iOrderPayment: z.number().int().positive().describe('Specific payment id to refund (from orders_get.payments[].iOrderPayment)'),
+  iOrder: z.coerce.number().int().positive(),
+  iOrderPayment: z.coerce.number().int().positive().describe('Specific payment id to refund (from orders_get.payments[].iOrderPayment)'),
   dryRun: dryRunField,
 });
 
@@ -96,7 +96,7 @@ const ordersRefundPayment = defineTool({
 
 // ── orders_resend_confirmation ────────────────────────────────
 const ordersResendConfirmationInput = z.object({
-  iOrder: z.number().int().positive(),
+  iOrder: z.coerce.number().int().positive(),
   dryRun: dryRunField,
 });
 
@@ -113,7 +113,7 @@ const ordersResendConfirmation = defineTool({
 
 // ── orders_resend_invoice ─────────────────────────────────────
 const ordersResendInvoiceInput = z.object({
-  iOrder: z.number().int().positive(),
+  iOrder: z.coerce.number().int().positive(),
   dryRun: dryRunField,
 });
 
@@ -130,7 +130,7 @@ const ordersResendInvoice = defineTool({
 
 // ── orders_patch_recipient ────────────────────────────────────
 const ordersPatchRecipientInput = z.object({
-  iOrder: z.number().int().positive(),
+  iOrder: z.coerce.number().int().positive(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   companyName: z.string().optional(),
@@ -168,7 +168,7 @@ const ordersPatchRecipient = defineTool({
 
 // ── orders_patch_flags ────────────────────────────────────────
 const ordersPatchFlagsInput = z.object({
-  iOrder: z.number().int().positive(),
+  iOrder: z.coerce.number().int().positive(),
   nonbinding: z.boolean().optional().describe('Flip between binding and non-binding (reservation)'),
   nonbindingExpire: isoDateTime.optional().describe('Expiration timestamp for non-binding reservations'),
   silent: z.boolean().optional().describe('Suppress customer-facing notification emails on updates'),
