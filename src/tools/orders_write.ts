@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition, dryRunField, dryRunPreview } from './types.js';
+import { defineTool, ToolDefinition, dryRunField, dryRunPreview, coerceBool } from './types.js';
 
 const isoDateTime = z.string().describe('ISO 8601 datetime');
 
@@ -169,9 +169,9 @@ const ordersPatchRecipient = defineTool({
 // ── orders_patch_flags ────────────────────────────────────────
 const ordersPatchFlagsInput = z.object({
   iOrder: z.coerce.number().int().positive(),
-  nonbinding: z.boolean().optional().describe('Flip between binding and non-binding (reservation)'),
+  nonbinding: coerceBool().optional().describe('Flip between binding and non-binding (reservation)'),
   nonbindingExpire: isoDateTime.optional().describe('Expiration timestamp for non-binding reservations'),
-  silent: z.boolean().optional().describe('Suppress customer-facing notification emails on updates'),
+  silent: coerceBool().optional().describe('Suppress customer-facing notification emails on updates'),
   internalInfo: z.string().optional().describe('Internal note (not customer-visible, not on invoice)'),
   customerInfo: z.string().optional().describe("Customer's note (not on invoice)"),
   invoiceInfo: z

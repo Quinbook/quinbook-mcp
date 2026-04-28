@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition, dryRunField, dryRunPreview } from './types.js';
+import { defineTool, ToolDefinition, dryRunField, dryRunPreview, coerceBool } from './types.js';
 
 const isoDateTime = z.string().describe('ISO 8601 datetime, e.g. 2026-04-30T20:30:00');
 
@@ -158,9 +158,9 @@ const cartCheckoutInput = z.object({
   invoiceInfo: z.string().optional(),
   customerInfo: z.string().optional(),
   internalInfo: z.string().optional(),
-  nonbinding: z.boolean().optional().describe('Make the order a non-binding reservation'),
+  nonbinding: coerceBool().optional().describe('Make the order a non-binding reservation'),
   nonbindingExpire: isoDateTime.optional().describe('Expiration timestamp for non-binding reservations'),
-  silent: z.boolean().optional().describe('Suppress notification emails'),
+  silent: coerceBool().optional().describe('Suppress notification emails'),
   dryRun: dryRunField,
 });
 

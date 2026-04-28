@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition } from './types.js';
+import { defineTool, ToolDefinition, coerceBool } from './types.js';
 
 const ordersListInput = z.object({
   search: z.string().optional().describe('Free-text search (customer name, order number, etc.)'),
@@ -13,7 +13,7 @@ const ordersListInput = z.object({
   direction: z.enum(['asc', 'desc']).optional().describe('Sort direction'),
   iEvent: z.coerce.number().int().positive().optional().describe('Filter by event id'),
   iSku: z.coerce.number().int().positive().optional().describe('Filter by SKU id'),
-  nonbinding: z.boolean().optional().describe('Only non-binding (reservation) orders'),
+  nonbinding: coerceBool().optional().describe('Only non-binding (reservation) orders'),
 });
 
 const ordersList = defineTool({

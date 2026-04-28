@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition } from './types.js';
+import { defineTool, ToolDefinition, coerceBool } from './types.js';
 
 const isoDate = z
   .string()
@@ -10,7 +10,7 @@ const slotsCalendarInput = z.object({
   lang: z.string().default('en').describe('Language code for translated fields'),
   timezone: z.string().default('Europe/Berlin').describe('IANA timezone for date interpretation'),
   ievent: z.coerce.number().int().positive().optional().describe('Restrict to a specific event id'),
-  onlyfree: z.boolean().optional().describe('If true, only return slots with free capacity'),
+  onlyfree: coerceBool().optional().describe('If true, only return slots with free capacity'),
 });
 
 const slotsCalendar = defineTool({
