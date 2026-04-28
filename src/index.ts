@@ -4,7 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { loadConfig } from './config.js';
 import { TokenManager } from './auth.js';
 import { ApiClient, ApiError } from './api-client.js';
-import { allTools } from './tools/index.js';
+import { buildAllTools } from './tools/index.js';
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
@@ -16,6 +16,7 @@ async function main(): Promise<void> {
     version: '0.1.0',
   });
 
+  const allTools = buildAllTools(tokens);
   for (const tool of allTools) {
     server.tool(
       tool.name,

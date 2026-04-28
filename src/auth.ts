@@ -11,18 +11,45 @@ const POLLING_INTERVAL_MS = 2000;
 
 const KEYTAR_SERVICE = 'quinbook-mcp';
 
-interface TokenSet {
+export interface TokenSet {
   access_token: string;
   refresh_token: string;
   expires_at: number;
 }
 
-function accountKey(cfg: Config): string {
+interface JwtClaims {
+  icompany?: string;
+  g?: string;
+  session?: string;
+  exp?: number;
+  nbf?: number;
+  [k: string]: unknown;
+}
+
+export function decodeJwt(token: string): JwtClaims {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return {};
+    return JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8')) as JwtClaims;
+  } catch {
+    return {};
+  }
+}
+
+function hostKey(cfg: Config): string {
   return `${new URL(cfg.baseUrl).host}::${cfg.clientId}`;
 }
 
-async function loadTokens(cfg: Config): Promise<TokenSet | null> {
-  const raw = await keytar.getPassword(KEYTAR_SERVICE, accountKey(cfg));
+function tokenKey(cfg: Config, iCompany: number): string {
+  return `${hostKey(cfg)}::${iCompany}`;
+}
+
+function activeKey(cfg: Config): string {
+  return `${hostKey(cfg)}::active`;
+}
+
+async function loadTokensForCompany(cfg: Config, iCompany: number): Promise<TokenSet | null> {
+  const raw = await keytar.getPassword(KEYTAR_SERVICE, tokenKey(cfg, iCompany));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as TokenSet;
@@ -31,25 +58,43 @@ async function loadTokens(cfg: Config): Promise<TokenSet | null> {
   }
 }
 
-async function saveTokens(cfg: Config, tokens: TokenSet): Promise<void> {
-  await keytar.setPassword(KEYTAR_SERVICE, accountKey(cfg), JSON.stringify(tokens));
+async function saveTokensForCompany(cfg: Config, iCompany: number, tokens: TokenSet): Promise<void> {
+  await keytar.setPassword(KEYTAR_SERVICE, tokenKey(cfg, iCompany), JSON.stringify(tokens));
 }
 
-async function clearTokens(cfg: Config): Promise<void> {
-  await keytar.deletePassword(KEYTAR_SERVICE, accountKey(cfg));
+async function clearTokensForCompany(cfg: Config, iCompany: number): Promise<void> {
+  await keytar.deletePassword(KEYTAR_SERVICE, tokenKey(cfg, iCompany));
+}
+
+async function loadActiveCompany(cfg: Config): Promise<number | null> {
+  const raw = await keytar.getPassword(KEYTAR_SERVICE, activeKey(cfg));
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function saveActiveCompany(cfg: Config, iCompany: number): Promise<void> {
+  await keytar.setPassword(KEYTAR_SERVICE, activeKey(cfg), String(iCompany));
 }
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-function tokenSetFromResponse(data: any): TokenSet {
+function tokenSetFromResponse(data: any, fallbackRefresh?: string): TokenSet {
   const expiresIn: number = typeof data.expires_in === 'number' ? data.expires_in : 3600;
   return {
     access_token: data.access_token || data.token,
-    refresh_token: data.refresh_token,
+    refresh_token: data.refresh_token || fallbackRefresh || '',
     expires_at: nowSec() + Math.max(60, expiresIn - 30),
   };
+}
+
+function companyFromToken(tokens: TokenSet): number | null {
+  const claims = decodeJwt(tokens.access_token);
+  if (!claims.icompany) return null;
+  const n = Number(claims.icompany);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 async function exchangeCode(cfg: Config, code: string, redirectUri: string): Promise<TokenSet> {
@@ -80,7 +125,7 @@ async function refreshTokens(cfg: Config, refreshToken: string): Promise<TokenSe
     },
     { headers: { 'User-Agent': cfg.userAgent } },
   );
-  return tokenSetFromResponse(res.data);
+  return tokenSetFromResponse(res.data, refreshToken);
 }
 
 async function awaitViaPolling(cfg: Config): Promise<{ code: string; redirectUri: string }> {
@@ -150,6 +195,7 @@ async function interactiveLogin(cfg: Config): Promise<TokenSet> {
 
 export class TokenManager {
   private cached: TokenSet | null = null;
+  private cachedCompany: number | null = null;
   private inflight: Promise<TokenSet> | null = null;
 
   constructor(private readonly cfg: Config) {}
@@ -159,36 +205,108 @@ export class TokenManager {
     return tokens.access_token;
   }
 
+  async getActiveCompany(): Promise<number | null> {
+    if (this.cachedCompany) return this.cachedCompany;
+    const stored = await loadActiveCompany(this.cfg);
+    this.cachedCompany = stored;
+    return stored;
+  }
+
+  async getCurrentClaims(): Promise<JwtClaims> {
+    const tokens = await this.ensureValidTokens();
+    return decodeJwt(tokens.access_token);
+  }
+
   async forceRefresh(): Promise<void> {
     this.cached = null;
-    await clearTokens(this.cfg);
+    const active = await this.getActiveCompany();
+    if (active) await clearTokensForCompany(this.cfg, active);
+  }
+
+  /**
+   * Switch the active company by exchanging the current bearer token via
+   * grant_type=switch_company. Stores the resulting token under the new
+   * company-id key and updates the active pointer.
+   */
+  async switchCompany(targetCompanyId: number): Promise<TokenSet> {
+    if (!Number.isFinite(targetCompanyId) || targetCompanyId <= 0) {
+      throw new Error(`Invalid company id: ${targetCompanyId}`);
+    }
+    const currentTokens = await this.ensureValidTokens();
+    const res = await axios.post(
+      `${this.cfg.baseUrl}/v1/auth/token`,
+      { grant_type: 'switch_company', company_id: targetCompanyId },
+      {
+        headers: {
+          Authorization: `Bearer ${currentTokens.access_token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': this.cfg.userAgent,
+        },
+        validateStatus: () => true,
+      },
+    );
+    if (res.status >= 400) {
+      throw new Error(`switch_company failed (${res.status}): ${JSON.stringify(res.data)}`);
+    }
+    // Server returns access_token but no refresh_token → keep the existing one.
+    const newTokens = tokenSetFromResponse(res.data, currentTokens.refresh_token);
+    const realCompany = companyFromToken(newTokens) ?? targetCompanyId;
+    await saveTokensForCompany(this.cfg, realCompany, newTokens);
+    await saveActiveCompany(this.cfg, realCompany);
+    this.cached = newTokens;
+    this.cachedCompany = realCompany;
+    return newTokens;
   }
 
   private async ensureValidTokens(): Promise<TokenSet> {
     if (this.inflight) return this.inflight;
 
     this.inflight = (async () => {
-      let tokens = this.cached || (await loadTokens(this.cfg));
+      let active = this.cachedCompany ?? (await loadActiveCompany(this.cfg));
+
+      // Fast path: in-memory cached token still valid for active company
+      if (
+        this.cached &&
+        this.cachedCompany === active &&
+        this.cached.expires_at > nowSec()
+      ) {
+        return this.cached;
+      }
+
+      let tokens: TokenSet | null = null;
+      if (active) tokens = await loadTokensForCompany(this.cfg, active);
 
       if (tokens && tokens.expires_at > nowSec()) {
         this.cached = tokens;
+        this.cachedCompany = active;
         return tokens;
       }
 
       if (tokens && tokens.refresh_token) {
         try {
           const refreshed = await refreshTokens(this.cfg, tokens.refresh_token);
-          await saveTokens(this.cfg, refreshed);
+          const company = companyFromToken(refreshed) ?? active!;
+          await saveTokensForCompany(this.cfg, company, refreshed);
+          await saveActiveCompany(this.cfg, company);
           this.cached = refreshed;
+          this.cachedCompany = company;
           return refreshed;
         } catch (e) {
-          process.stderr.write(`[quinbook-mcp] Refresh failed, falling back to interactive login: ${(e as Error).message}\n`);
+          process.stderr.write(
+            `[quinbook-mcp] Refresh failed, falling back to interactive login: ${(e as Error).message}\n`,
+          );
         }
       }
 
       const fresh = await interactiveLogin(this.cfg);
-      await saveTokens(this.cfg, fresh);
+      const company = companyFromToken(fresh);
+      if (!company) {
+        throw new Error('Login succeeded but JWT did not contain icompany claim.');
+      }
+      await saveTokensForCompany(this.cfg, company, fresh);
+      await saveActiveCompany(this.cfg, company);
       this.cached = fresh;
+      this.cachedCompany = company;
       return fresh;
     })();
 

@@ -1,7 +1,7 @@
 import { loadConfig } from './config.js';
 import { TokenManager } from './auth.js';
 import { ApiClient } from './api-client.js';
-import { allTools } from './tools/index.js';
+import { buildAllTools } from './tools/index.js';
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   const tokens = new TokenManager(cfg);
   const api = new ApiClient(cfg, tokens);
 
+  const allTools = buildAllTools(tokens);
   process.stderr.write(`[test-flow] ${allTools.length} tools registered: ${allTools.map((t) => t.name).join(', ')}\n`);
   process.stderr.write('[test-flow] Triggering OAuth flow (browser will open if no cached token)…\n');
 
