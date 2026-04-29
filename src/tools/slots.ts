@@ -16,11 +16,11 @@ const slotsCalendarInput = z.object({
 const slotsCalendar = defineTool({
   name: 'slots_calendar',
   description:
-    'Get the company calendar for a specific date — all events and their slots, with availability calculations.',
+    'Get the company calendar for a specific date — all events and their slots, with availability. Returns a compact projection (id, name, start/end, capacity/freeSeats/takenSeats, isAvailable) so the response fits into AI tool-output limits.',
   inputSchema: slotsCalendarInput,
   handler: async (input, api) => {
     const { date, ...query } = input;
-    return api.get(`/v1/slots/calendar/${date}`, query);
+    return api.get(`/v1/slots/calendar/${date}/compact`, query);
   },
 });
 
