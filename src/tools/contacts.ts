@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition, dryRunField, dryRunPreview } from './types.js';
+import { defineTool, ToolDefinition, dryRunField, dryRunPreview, coerceBool } from './types.js';
 
 // All endpoints in this module are class-level Internal in the backend
 // (ContactController, CustomerController). Per the "Internal but
@@ -87,9 +87,90 @@ const contactsAddNotice = defineTool({
   },
 });
 
+// ── contacts_create / update / delete ───────────────────────────
+// Backed by POST/PATCH/DELETE /v1/contact (Internal, MCP-allowed).
+// Mirror of WebCore SellerController._SetContact behavior.
+const contactWritableFields = z.object({
+  gender: z.string().optional().describe('e.g. "M", "F", "" (empty = unset)'),
+  companyName: z.string().optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  birthday: z.string().optional().describe('ISO yyyy-MM-dd or dd.MM.yyyy'),
+  emailAddress: z.string().email().optional(),
+  website: z.string().optional(),
+  phone1: z.string().optional().describe('Server-side normalized via Helper.ParsePhonenumber'),
+  phone2: z.string().optional(),
+  address1: z.string().optional(),
+  address2: z.string().optional(),
+  zip: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional().describe('ISO country code (e.g. "DE"). Used as fallback for phone normalization.'),
+  language: z.string().optional(),
+  ustId: z.string().optional(),
+  internalNote: z.string().optional().describe('Free-form note attached as a notice entry'),
+  newsletterSeller: coerceBool().optional().describe('Whether the contact opts in to seller newsletter'),
+  customFields: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('Dynamic CustomerField values. Keys are iCustomerField ids as strings, values are the field content.'),
+});
+
+const contactsCreateInput = contactWritableFields.extend({
+  dryRun: dryRunField,
+});
+
+const contactsCreate = defineTool({
+  name: 'contacts_create',
+  description:
+    'Create a new contact (and underlying customer record). At least one of firstName/lastName/companyName/emailAddress required. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+  inputSchema: contactsCreateInput,
+  handler: async (input, api) => {
+    const { dryRun, ...body } = input;
+    if (dryRun) return dryRunPreview('POST', '/v1/contact', body);
+    return api.post('/v1/contact', body);
+  },
+});
+
+const contactsUpdateInput = contactWritableFields.extend({
+  iCustomer: z.coerce.number().int().positive().describe('Customer / contact id to update'),
+  dryRun: dryRunField,
+});
+
+const contactsUpdate = defineTool({
+  name: 'contacts_update',
+  description:
+    'Patch an existing contact. Only provided fields are written. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+  inputSchema: contactsUpdateInput,
+  handler: async (input, api) => {
+    const { dryRun, iCustomer, ...body } = input;
+    const url = `/v1/contact/${iCustomer}`;
+    if (dryRun) return dryRunPreview('PATCH', url, body);
+    return api.patch(url, body);
+  },
+});
+
+const contactsDeleteInput = z.object({
+  iCustomer: z.coerce.number().int().positive().describe('Customer / contact id to delete'),
+  dryRun: dryRunField,
+});
+
+const contactsDelete = defineTool({
+  name: 'contacts_delete',
+  description: 'Soft-delete a contact. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+  inputSchema: contactsDeleteInput,
+  handler: async (input, api) => {
+    const url = `/v1/contact/${input.iCustomer}`;
+    if (input.dryRun) return dryRunPreview('DELETE', url);
+    return api.delete(url);
+  },
+});
+
 export const contactTools: ToolDefinition[] = [
   contactsSearch,
   contactsGet,
   contactsNoticesList,
   contactsAddNotice,
+  contactsCreate,
+  contactsUpdate,
+  contactsDelete,
 ];
