@@ -233,12 +233,26 @@ export class TokenManager {
       throw new Error(`Invalid company id: ${targetCompanyId}`);
     }
     const currentTokens = await this.ensureValidTokens();
+    return this.switchCompanyWithBearer(currentTokens.access_token, targetCompanyId, currentTokens.refresh_token);
+  }
+
+  /**
+   * Internal: perform a switch_company grant using a specific bearer token.
+   * Used both by the public switchCompany() (which obtains the bearer via
+   * ensureValidTokens) and by ensureValidTokens()'s refresh path (which has
+   * the freshly-refreshed token in hand and must NOT recurse into itself).
+   */
+  private async switchCompanyWithBearer(
+    bearer: string,
+    targetCompanyId: number,
+    fallbackRefreshToken: string,
+  ): Promise<TokenSet> {
     const res = await axios.post(
       `${this.cfg.baseUrl}/v1/auth/token`,
       { grant_type: 'switch_company', company_id: targetCompanyId },
       {
         headers: {
-          Authorization: `Bearer ${currentTokens.access_token}`,
+          Authorization: `Bearer ${bearer}`,
           'Content-Type': 'application/json',
           'User-Agent': this.cfg.userAgent,
         },
@@ -249,7 +263,7 @@ export class TokenManager {
       throw new Error(`switch_company failed (${res.status}): ${JSON.stringify(res.data)}`);
     }
     // Server returns access_token but no refresh_token → keep the existing one.
-    const newTokens = tokenSetFromResponse(res.data, currentTokens.refresh_token);
+    const newTokens = tokenSetFromResponse(res.data, fallbackRefreshToken);
     const realCompany = companyFromToken(newTokens) ?? targetCompanyId;
     await saveTokensForCompany(this.cfg, realCompany, newTokens);
     await saveActiveCompany(this.cfg, realCompany);
@@ -285,7 +299,31 @@ export class TokenManager {
       if (tokens && tokens.refresh_token) {
         try {
           const refreshed = await refreshTokens(this.cfg, tokens.refresh_token);
-          const company = companyFromToken(refreshed) ?? active!;
+          const refreshedCompany = companyFromToken(refreshed);
+
+          // Backend bug-workaround: HandleRefreshToken always picks
+          // sp_GetCustomerCompanies(...).FirstOrDefault() as the company,
+          // ignoring the icompany the previous access token was bound to.
+          // Result: refresh of a switched-token silently reverts to the
+          // user's default company. If the refresh changed the company
+          // away from the active pointer, immediately switch back.
+          if (active && refreshedCompany && refreshedCompany !== active) {
+            process.stderr.write(
+              `[quinbook-mcp] Refresh returned company ${refreshedCompany} but active is ${active}; restoring via switch_company.\n`,
+            );
+            // Persist the just-refreshed token under its real company key
+            // so future refresh-token calls for that company can find it.
+            await saveTokensForCompany(this.cfg, refreshedCompany, refreshed);
+            // Now switch back to the desired active company using the
+            // freshly-refreshed bearer (avoids recursion via ensureValidTokens).
+            return await this.switchCompanyWithBearer(
+              refreshed.access_token,
+              active,
+              refreshed.refresh_token,
+            );
+          }
+
+          const company = refreshedCompany ?? active!;
           await saveTokensForCompany(this.cfg, company, refreshed);
           await saveActiveCompany(this.cfg, company);
           this.cached = refreshed;
