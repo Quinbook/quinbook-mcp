@@ -36,11 +36,13 @@ MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook
 
 ## Configuration
 
-| Variable | Default | Description |
+The package ships with a built-in OAuth client — no client id or secret to manage.
+
+| Variable | Default | When to set |
 |---|---|---|
-| `QUINBOOK_API_BASE_URL` | `https://api.quinbook.com` | Base URL of the quinbook API |
-| `QUINBOOK_OAUTH_CLIENT_ID` | _(required)_ | OAuth client id, issued by quinbook |
-| `QUINBOOK_OAUTH_CLIENT_SECRET` | _(required)_ | OAuth client secret |
+| `QUINBOOK_API_BASE_URL` | `https://api.quinbook.com` | Override only for development against a different host |
+| `QUINBOOK_OAUTH_CLIENT_ID` | _(bundled)_ | Override only for testing against an alternate OAuth app |
+| `QUINBOOK_OAUTH_CLIENT_SECRET` | _(bundled)_ | Override only for testing against an alternate OAuth app |
 | `QUINBOOK_DEBUG` | _(unset)_ | If set, logs outbound headers (with bearer masked) to stderr |
 
 ## Setup in Claude Desktop / Claude Code
@@ -52,17 +54,13 @@ Edit `claude_desktop_config.json` (Desktop) or `.mcp.json` (Code), add:
   "mcpServers": {
     "quinbook": {
       "command": "npx",
-      "args": ["-y", "@quinbook/mcp-api"],
-      "env": {
-        "QUINBOOK_OAUTH_CLIENT_ID": "your-client-id",
-        "QUINBOOK_OAUTH_CLIENT_SECRET": "your-client-secret"
-      }
+      "args": ["-y", "@quinbook/mcp-api"]
     }
   }
 }
 ```
 
-On the first tool call the server opens a browser window for OAuth login. The user logs in once; the resulting tokens are saved to the OS credential store and auto-refreshed for the lifetime of the refresh token (~30 days). No further interactive login is required during that window.
+That's it — no client id, no secret. On the first tool call the server opens a browser window for the OAuth login. The user logs in **with their own quinbook user credentials**; the resulting tokens are saved to the OS credential store and auto-refreshed for the lifetime of the refresh token (~30 days). No further interactive login is required during that window.
 
 ## Architecture
 
