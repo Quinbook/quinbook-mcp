@@ -2,6 +2,7 @@ import { ToolDefinition } from './types.js';
 import { slotTools } from './slots.js';
 import { orderTools } from './orders.js';
 import { couponTools } from './coupons.js';
+import { contactTools } from './contacts.js';
 import { buildMeTools } from './me.js';
 import { cartWriteTools } from './cart_write.js';
 import { orderWriteTools } from './orders_write.js';
@@ -13,6 +14,7 @@ export function buildAllTools(tokens: TokenManager): ToolDefinition[] {
     ...slotTools,
     ...orderTools,
     ...couponTools,
+    ...contactTools,
     ...cartWriteTools,
     ...orderWriteTools,
   ];
