@@ -1,0 +1,43 @@
+# Smithery.ai manifest — https://smithery.ai/docs/build/project-config
+#
+# This file lets Smithery offer a one-click install for quinbook-mcp.
+# Once published, end-users can install via:
+#   smithery install @quinbook/mcp-api
+# or directly from the Smithery web UI in their MCP client of choice.
+
+startCommand:
+  type: stdio
+  configSchema:
+    # No required configuration — credentials are bundled per RFC 8252-style
+    # public client. Power users can still override via env vars at install time.
+    type: object
+    properties:
+      QUINBOOK_API_BASE_URL:
+        type: string
+        title: API base URL
+        description: 'Override the quinbook API host. Defaults to https://api.quinbook.com.'
+        default: 'https://api.quinbook.com'
+      QUINBOOK_OAUTH_CLIENT_ID:
+        type: string
+        title: OAuth client id (override)
+        description: 'Optional. Only set when running against an alternate OAuth app.'
+      QUINBOOK_OAUTH_CLIENT_SECRET:
+        type: string
+        title: OAuth client secret (override)
+        description: 'Optional. Only set when running against an alternate OAuth app.'
+        format: password
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: Object.fromEntries(
+        Object.entries({
+          QUINBOOK_API_BASE_URL: config.QUINBOOK_API_BASE_URL,
+          QUINBOOK_OAUTH_CLIENT_ID: config.QUINBOOK_OAUTH_CLIENT_ID,
+          QUINBOOK_OAUTH_CLIENT_SECRET: config.QUINBOOK_OAUTH_CLIENT_SECRET,
+        }).filter(([_, v]) => v !== undefined && v !== '')
+      ),
+    })
+
+build:
+  command: 'npm run build'
