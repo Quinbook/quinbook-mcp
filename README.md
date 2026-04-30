@@ -45,6 +45,29 @@ The package ships with a built-in OAuth client — no client id or secret to man
 | `QUINBOOK_OAUTH_CLIENT_SECRET` | _(bundled)_ | Override only for testing against an alternate OAuth app |
 | `QUINBOOK_DEBUG` | _(unset)_ | If set, logs outbound headers (with bearer masked) to stderr |
 
+## Who is this for?
+
+- **Quinbook customers** (event organisers, escape rooms, museums, sport facilities, ticketing operators) who want to talk to their booking system in plain language: *"How many bookings for Saturday's Escape Room?"*, *"Cancel order 12345 with a 5 € fee."*, *"Add a discount coupon for the kids' event next month."*
+- **Power users / multi-tenant operators** managing several companies at once. Switch with `me_switch_company` and continue working in the chat.
+- **Backoffice automation** — combine quinbook-mcp with other MCP servers (filesystem, sheets, …) to build refund-batch workflows, daily-report-generators, etc.
+
+## Example prompts
+
+```
+You: "Show me how many bookings Wunderbar GmbH had last week."
+→ KI ruft me_companies({search:"Wunderbar"}), me_switch_company(108),
+  orders_list({ dateFrom: "2026-04-23", dateTo: "2026-04-29" })
+
+You: "Cancel order 12345 because the customer is sick. Charge no fee."
+→ KI ruft orders_get(12345), orders_cancel({iOrder:12345, refundMethod:"...", reason:"..."}, dryRun:true),
+  shows preview → on confirmation → dryRun:false
+
+You: "Add a Reindeer Antler Headband to a cart for Henning, ship to his address."
+→ KI ruft contacts_search({search:"Henning"}), cart_add_item dryRun, cart_checkout dryRun → confirm → real
+```
+
+The included [skills](./skills) (`quinbook-booking`, `quinbook-refund`, `quinbook-multi-tenant`) describe these flows in detail so Claude follows them consistently.
+
 ## Setup in Claude Desktop / Claude Code
 
 Edit `claude_desktop_config.json` (Desktop) or `.mcp.json` (Code), add:
@@ -61,6 +84,25 @@ Edit `claude_desktop_config.json` (Desktop) or `.mcp.json` (Code), add:
 ```
 
 That's it — no client id, no secret. On the first tool call the server opens a browser window for the OAuth login. The user logs in **with their own quinbook user credentials**; the resulting tokens are saved to the OS credential store and auto-refreshed for the lifetime of the refresh token (~30 days). No further interactive login is required during that window.
+
+## Skills
+
+The repo ships with three companion skills that teach Claude how to use the tools well:
+
+| Skill | What it covers |
+|---|---|
+| [`booking-workflow`](./skills/booking-workflow.md) | slots → cart → optional coupon → calculate → checkout → verify, with dry-run discipline |
+| [`refund-workflow`](./skills/refund-workflow.md) | `orders_cancel` with refund-method matrix per payment type, fees, partial refunds |
+| [`multi-tenant`](./skills/multi-tenant.md) | when to call `me_whoami`, how to switch companies, safety net for cross-tenant operations |
+
+Drop them into `~/.claude/skills/` (or your IDE's equivalent) so Claude reads the workflow before reaching for tools.
+
+## Roadmap
+
+- [x] **0.1** — initial release: 36 tools, OAuth polling-callback, dryRun pattern, multi-tenancy
+- [ ] **0.2** — PKCE (RFC 7636) instead of bundled client secret; tests + CI; smithery.ai listing
+- [ ] **0.3** — `shifts_*` tools (employee skills, workload, historic shifts) wrapping the AiTools backend; selectable LLM-friendly compact projections for more endpoints
+- [ ] **0.4** — write tools for shifts (assignment changes), survey statistics; English UI translations of error messages
 
 ## Architecture
 
