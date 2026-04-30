@@ -2,7 +2,7 @@
 
 MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook.com) public API as tools for AI assistants — Claude Desktop, Claude Code, IDEs and any other MCP-compatible client.
 
-> **Status:** private preview. Not yet published to npm.
+> **Status:** v0.1.0 — initial public release.
 
 ## Highlights
 
@@ -87,6 +87,22 @@ QUINBOOK_OAUTH_CLIENT_SECRET=… \
 node dist/test-flow.js
 ```
 
+## Troubleshooting / FAQ
+
+**Q: My active company keeps switching back to a different one after a while.**  
+This is the known refresh-token edge case the client auto-corrects: the server falls back to `FirstOrDefault` when an old refresh-token doesn't carry the `icompany` claim. After one login cycle with a fresh token, the issue stops.
+
+**Q: I get an `invalid_redirect_uri` error during login.**  
+Ensure your OAuth app on the quinbook backend has `redirect_uris` set to a list including `"http://127.0.0.1/callback"` (loopback wildcard). Polling-mode does not require this — it uses the `urn:woizzer:polling` marker instead — but mixed setups can confuse the matcher.
+
+**Q: Output is too large for my LLM tool budget.**  
+`slots_calendar` already uses the compact backend variant. For per-event filtering, pass the `ievent` argument. For order listings, use `limit` (max 100) and date filters.
+
+**Q: How do I log out / switch user?**  
+Delete the keytar entries via your OS credential manager (search for `quinbook-mcp` service), then call any tool — the polling-flow login will re-trigger.
+
 ## License
 
-UNLICENSED — private preview.
+[MIT](./LICENSE) © quinbook GmbH.
+
+The MIT license covers **the code in this repository** (the MCP server itself). Use of the quinbook API endpoints exposed through this server is governed by the quinbook Terms of Service. "quinbook" is a trademark of quinbook GmbH.
