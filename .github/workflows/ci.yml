@@ -24,6 +24,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      # keytar uses libsecret on Linux — needs the dev headers + runtime to build / load.
+      # Default ubuntu-latest images don't ship them.
+      - name: Install libsecret (Linux runner only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
       - name: Install dependencies
         run: npm ci
 
