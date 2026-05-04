@@ -90,6 +90,18 @@ function tokenSetFromResponse(data: any, fallbackRefresh?: string): TokenSet {
   };
 }
 
+// PKCE helpers (RFC 7636).
+function base64UrlEncode(buf: Buffer): string {
+  return buf.toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function generatePkcePair(): { verifier: string; challenge: string; method: 'S256' } {
+  // 32 random bytes → 43-char base64url string, well within the 43..128 spec range.
+  const verifier = base64UrlEncode(crypto.randomBytes(32));
+  const challenge = base64UrlEncode(crypto.createHash('sha256').update(verifier).digest());
+  return { verifier, challenge, method: 'S256' };
+}
+
 function companyFromToken(tokens: TokenSet): number | null {
   const claims = decodeJwt(tokens.access_token);
   if (!claims.icompany) return null;
@@ -97,20 +109,32 @@ function companyFromToken(tokens: TokenSet): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-async function exchangeCode(cfg: Config, code: string, redirectUri: string): Promise<TokenSet> {
+async function exchangeCode(
+  cfg: Config,
+  code: string,
+  redirectUri: string,
+  codeVerifier: string,
+): Promise<TokenSet> {
   const res = await axios.post(
     `${cfg.baseUrl}/v1/auth/token`,
     {
       grant_type: 'authorization_code',
       client_id: cfg.clientId,
-      client_secret: cfg.clientSecret,
       code,
       redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
       device_type: 'mcp',
       device_info: cfg.userAgent,
     },
-    { headers: { 'User-Agent': cfg.userAgent } },
+    { headers: { 'User-Agent': cfg.userAgent }, validateStatus: () => true },
   );
+  if (res.status >= 400) {
+    process.stderr.write(
+      `[quinbook-mcp] exchangeCode FAILED ${res.status}: ${JSON.stringify(res.data)}\n` +
+      `[quinbook-mcp] body sent: grant_type=authorization_code client_id=${cfg.clientId} code=${code.slice(0,8)}… redirect_uri=${redirectUri} code_verifier_len=${codeVerifier.length}\n`,
+    );
+    throw new Error(`exchangeCode failed (${res.status}): ${JSON.stringify(res.data)}`);
+  }
   return tokenSetFromResponse(res.data);
 }
 
@@ -120,7 +144,6 @@ async function refreshTokens(cfg: Config, refreshToken: string): Promise<TokenSe
     {
       grant_type: 'refresh_token',
       client_id: cfg.clientId,
-      client_secret: cfg.clientSecret,
       refresh_token: refreshToken,
     },
     { headers: { 'User-Agent': cfg.userAgent } },
@@ -128,7 +151,10 @@ async function refreshTokens(cfg: Config, refreshToken: string): Promise<TokenSe
   return tokenSetFromResponse(res.data, refreshToken);
 }
 
-async function awaitViaPolling(cfg: Config): Promise<{ code: string; redirectUri: string }> {
+async function awaitViaPolling(
+  cfg: Config,
+  pkce: { challenge: string; method: 'S256' },
+): Promise<{ code: string; redirectUri: string }> {
   const pollingToken = crypto.randomUUID();
   const state = crypto.randomBytes(16).toString('hex');
 
@@ -139,6 +165,8 @@ async function awaitViaPolling(cfg: Config): Promise<{ code: string; redirectUri
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('auth_mode', 'user');
   authUrl.searchParams.set('polling_token', pollingToken);
+  authUrl.searchParams.set('code_challenge', pkce.challenge);
+  authUrl.searchParams.set('code_challenge_method', pkce.method);
 
   process.stderr.write(
     `[quinbook-mcp] Polling-mode login. Opening browser: ${authUrl.toString()}\n`,
@@ -189,8 +217,9 @@ async function awaitViaPolling(cfg: Config): Promise<{ code: string; redirectUri
 }
 
 async function interactiveLogin(cfg: Config): Promise<TokenSet> {
-  const { code, redirectUri } = await awaitViaPolling(cfg);
-  return exchangeCode(cfg, code, redirectUri);
+  const pkce = generatePkcePair();
+  const { code, redirectUri } = await awaitViaPolling(cfg, { challenge: pkce.challenge, method: pkce.method });
+  return exchangeCode(cfg, code, redirectUri, pkce.verifier);
 }
 
 export class TokenManager {

@@ -36,13 +36,12 @@ MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook
 
 ## Configuration
 
-The package ships with a built-in OAuth client — no client id or secret to manage.
+The package ships with a built-in OAuth client id — no secret to manage. Authentication uses the OAuth 2.0 Authorization Code flow with **PKCE** (RFC 7636), which is the recommended pattern for native/CLI public clients per RFC 8252. The `client_id` is a public identifier and intentionally bundled.
 
 | Variable | Default | When to set |
 |---|---|---|
 | `QUINBOOK_API_BASE_URL` | `https://api.quinbook.com` | Override only for development against a different host |
 | `QUINBOOK_OAUTH_CLIENT_ID` | _(bundled)_ | Override only for testing against an alternate OAuth app |
-| `QUINBOOK_OAUTH_CLIENT_SECRET` | _(bundled)_ | Override only for testing against an alternate OAuth app |
 | `QUINBOOK_DEBUG` | _(unset)_ | If set, logs outbound headers (with bearer masked) to stderr |
 
 ## Who is this for?
@@ -125,7 +124,6 @@ Smoke test (full OAuth + sample tool calls):
 ```bash
 QUINBOOK_API_BASE_URL=https://api3.quinbook.com \
 QUINBOOK_OAUTH_CLIENT_ID=… \
-QUINBOOK_OAUTH_CLIENT_SECRET=… \
 node dist/test-flow.js
 ```
 

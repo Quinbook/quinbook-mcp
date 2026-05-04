@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-05-02
+
+### Changed
+- **Auth: switched from bundled `client_secret` to PKCE (RFC 7636).** The OAuth
+  app `quinbook-mcp` is now registered as a public client on the backend; the
+  authorization-code flow is bound to a per-session `code_verifier` instead of
+  a shared secret. Refresh-token requests no longer require a secret either.
+- Removed `QUINBOOK_OAUTH_CLIENT_SECRET` env var and the bundled default secret.
+  `QUINBOOK_OAUTH_CLIENT_ID` is the only OAuth setting end-users can override.
+
+### Why
+- A `client_secret` shipped inside an npm package is not actually secret. PKCE
+  is the standard mitigation for native/CLI public clients (RFC 8252) and lets
+  us open-source the repo without leaking anything that adds attack surface.
+
 ## [0.1.0] - 2026-04-30 (initial release)
 
 ### Added
