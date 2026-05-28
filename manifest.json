@@ -1,0 +1,48 @@
+{
+  "dxt_version": "0.1",
+  "name": "quinbook-mcp",
+  "display_name": "Quinbook",
+  "version": "0.2.0",
+  "description": "Talk to your quinbook ticketing system in plain language — bookings, slots, calendar, contacts, coupons and cart/order operations as tools for Claude.",
+  "long_description": "MCP server exposing the quinbook public API. Read tools for slots, orders, coupons and contacts; write tools for cart, order lifecycle and contacts that execute immediately (the bundled skills require confirming with the user first). OAuth login with your own quinbook credentials; multi-tenant via me_switch_company.",
+  "author": {
+    "name": "WOIZZER AG",
+    "url": "https://quinbook.com"
+  },
+  "license": "MIT",
+  "keywords": ["mcp", "quinbook", "ticketing", "booking", "events", "shop", "calendar", "contacts"],
+  "homepage": "https://github.com/Quinbook/quinbook-mcp",
+  "documentation": "https://github.com/Quinbook/quinbook-mcp#readme",
+  "support": "https://github.com/Quinbook/quinbook-mcp/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Quinbook/quinbook-mcp.git"
+  },
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"],
+      "env": {
+        "QUINBOOK_API_BASE_URL": "${user_config.api_base_url}"
+      }
+    }
+  },
+  "user_config": {
+    "api_base_url": {
+      "type": "string",
+      "title": "API server",
+      "description": "Production: https://api.quinbook.com — Beta/test (recommended for trying out write operations): https://api3.quinbook.com",
+      "default": "https://api.quinbook.com",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["win32", "darwin", "linux"],
+    "runtimes": {
+      "node": ">=20.0.0"
+    }
+  }
+}

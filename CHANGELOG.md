@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **Removed the `dryRun` mechanism.** Write tools now execute immediately. The
+  confirm-before-write discipline lives in the bundled skills instead of a tool
+  flag. (`dryRunField`/`dryRunPreview` removed; `dryRun` input dropped from all
+  write tools.)
+- **Token storage falls back to a file** (`~/.quinbook-mcp/secrets.json`, mode
+  0600) when keytar's native module cannot load — e.g. an ABI mismatch against a
+  bundled runtime. keytar stays primary where it loads.
+
+### Added
+- **Desktop Extension packaging** (`manifest.json`) so the server can be
+  installed in Claude Desktop as a single `.mcpb` file (Settings → Extensions),
+  with an optional API-server picker (production / beta).
+
 ## [0.2.0] - 2026-05-02
 
 ### Changed

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Model Context Protocol server for the quinbook ticketing API — exposes bookings, slots, calendar, contacts, coupons and shop operations as tools for Claude and other AI assistants.",
   "license": "MIT",
-  "author": "quinbook GmbH",
+  "author": "WOIZZER AG",
   "homepage": "https://github.com/Quinbook/quinbook-mcp#readme",
   "repository": {
     "type": "git",

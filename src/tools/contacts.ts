@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition, dryRunField, dryRunPreview, coerceBool } from './types.js';
+import { defineTool, ToolDefinition, coerceBool } from './types.js';
 
 // All endpoints in this module are class-level Internal in the backend
 // (ContactController, CustomerController). Per the "Internal but
@@ -70,19 +70,16 @@ const contactsAddNoticeInput = z.object({
     .string()
     .optional()
     .describe('Notice type (e.g. "default", "default-private"). System-types ("system*") are blocked. Default: "default".'),
-  attachmentId: z.coerce.number().int().positive().optional().describe('Optional attachment file id'),
-  dryRun: dryRunField,
-});
+  attachmentId: z.coerce.number().int().positive().optional().describe('Optional attachment file id'),});
 
 const contactsAddNotice = defineTool({
   name: 'contacts_add_notice',
   description:
-    'Add a new note/notice to a contact. Use this to record interactions ("Customer called", "Asked about refund", etc.). Notices are visible to staff in the backend UI. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+    'Add a new note/notice to a contact. Use this to record interactions ("Customer called", "Asked about refund", etc.). Notices are visible to staff in the backend UI. WRITE. (Internal — MCP-allowed)',
   inputSchema: contactsAddNoticeInput,
   handler: async (input, api) => {
-    const { dryRun, iCustomer, ...body } = input;
+    const { iCustomer, ...body } = input;
     const url = `/v1/customer/${iCustomer}/notices`;
-    if (dryRun) return dryRunPreview('POST', url, body);
     return api.post(url, body);
   },
 });
@@ -115,52 +112,40 @@ const contactWritableFields = z.object({
     .describe('Dynamic CustomerField values. Keys are iCustomerField ids as strings, values are the field content.'),
 });
 
-const contactsCreateInput = contactWritableFields.extend({
-  dryRun: dryRunField,
-});
+const contactsCreateInput = contactWritableFields.extend({});
 
 const contactsCreate = defineTool({
   name: 'contacts_create',
   description:
-    'Create a new contact (and underlying customer record). At least one of firstName/lastName/companyName/emailAddress required. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+    'Create a new contact (and underlying customer record). At least one of firstName/lastName/companyName/emailAddress required. WRITE. (Internal — MCP-allowed)',
   inputSchema: contactsCreateInput,
-  handler: async (input, api) => {
-    const { dryRun, ...body } = input;
-    if (dryRun) return dryRunPreview('POST', '/v1/contact', body);
-    return api.post('/v1/contact', body);
-  },
+  handler: async (input, api) => api.post('/v1/contact', input),
 });
 
 const contactsUpdateInput = contactWritableFields.extend({
-  iCustomer: z.coerce.number().int().positive().describe('Customer / contact id to update'),
-  dryRun: dryRunField,
-});
+  iCustomer: z.coerce.number().int().positive().describe('Customer / contact id to update'),});
 
 const contactsUpdate = defineTool({
   name: 'contacts_update',
   description:
-    'Patch an existing contact. Only provided fields are written. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+    'Patch an existing contact. Only provided fields are written. WRITE. (Internal — MCP-allowed)',
   inputSchema: contactsUpdateInput,
   handler: async (input, api) => {
-    const { dryRun, iCustomer, ...body } = input;
+    const { iCustomer, ...body } = input;
     const url = `/v1/contact/${iCustomer}`;
-    if (dryRun) return dryRunPreview('PATCH', url, body);
     return api.patch(url, body);
   },
 });
 
 const contactsDeleteInput = z.object({
-  iCustomer: z.coerce.number().int().positive().describe('Customer / contact id to delete'),
-  dryRun: dryRunField,
-});
+  iCustomer: z.coerce.number().int().positive().describe('Customer / contact id to delete'),});
 
 const contactsDelete = defineTool({
   name: 'contacts_delete',
-  description: 'Soft-delete a contact. WRITE — defaults to dryRun. (Internal — MCP-allowed)',
+  description: 'Soft-delete a contact. WRITE. (Internal — MCP-allowed)',
   inputSchema: contactsDeleteInput,
   handler: async (input, api) => {
     const url = `/v1/contact/${input.iCustomer}`;
-    if (input.dryRun) return dryRunPreview('DELETE', url);
     return api.delete(url);
   },
 });

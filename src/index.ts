@@ -11,10 +11,23 @@ async function main(): Promise<void> {
   const tokens = new TokenManager(cfg);
   const api = new ApiClient(cfg, tokens);
 
-  const server = new McpServer({
-    name: 'quinbook-mcp',
-    version: '0.1.0',
-  });
+  const server = new McpServer(
+    {
+      name: 'quinbook-mcp',
+      version: '0.2.0',
+    },
+    {
+      instructions: [
+        'quinbook booking assistant — tools for the quinbook ticketing/booking system.',
+        '',
+        'Booking links: to give the user a clickable link that opens a booking in the quinbook seller backoffice, build the URL',
+        '  https://quinbook.com/seller/bookings/order/{iOrder}',
+        "using the order's numeric iOrder (returned by orders_get / orders_list). No token is required for this seller link.",
+        '',
+        'Write tools execute immediately — there is no dry-run/preview. Before calling any write tool (cart_*, orders_cancel, orders_record_payment, orders_refund_payment, orders_patch_*, contacts_create/update/delete, …) summarise what you are about to do and get the user\'s explicit confirmation.',
+      ].join('\n'),
+    },
+  );
 
   const allTools = buildAllTools(tokens);
   for (const tool of allTools) {

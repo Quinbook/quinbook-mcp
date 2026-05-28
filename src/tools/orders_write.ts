@@ -1,23 +1,19 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition, dryRunField, dryRunPreview, coerceBool } from './types.js';
+import { defineTool, ToolDefinition, coerceBool } from './types.js';
 
 const isoDateTime = z.string().describe('ISO 8601 datetime');
 
 // ── orders_to_cart ────────────────────────────────────────────
 const ordersToCartInput = z.object({
-  iOrder: z.coerce.number().int().positive().describe('Order id to copy into a new cart'),
-  dryRun: dryRunField,
-});
+  iOrder: z.coerce.number().int().positive().describe('Order id to copy into a new cart'),});
 
 const ordersToCart = defineTool({
   name: 'orders_to_cart',
   description:
-    'Copy an existing order into a fresh cart for re-booking / modification. The original order remains untouched until the new cart is checked out (which adopts the source order via i_parent). WRITE — defaults to dryRun.',
+    'Copy an existing order into a fresh cart for re-booking / modification. The original order remains untouched until the new cart is checked out (which adopts the source order via i_parent). WRITE.',
   inputSchema: ordersToCartInput,
   handler: async (input, api) => {
-    const url = `/v2/order/${input.iOrder}/to-cart`;
-    if (input.dryRun) return dryRunPreview('POST', url);
-    return api.post(url);
+    const url = `/v2/order/${input.iOrder}/to-cart`;    return api.post(url);
   },
 });
 
@@ -34,20 +30,16 @@ const ordersCancelInput = z.object({
     .describe('Use "overpayed" to only refund the overpaid amount (partial refund).'),
   reason: z.string().optional().describe('Cancellation reason (stored in audit log)'),
   fee: z.coerce.number().optional().describe('Cancellation fee to deduct from refund amount'),
-  reference: z.string().optional().describe('Payment reference (e.g. bank transfer id)'),
-  dryRun: dryRunField,
-});
+  reference: z.string().optional().describe('Payment reference (e.g. bank transfer id)'),});
 
 const ordersCancel = defineTool({
   name: 'orders_cancel',
   description:
-    'Cancel an order and process refunds. Default refund method follows the original payment handler. Optionally charge a cancellation fee. WRITE — defaults to dryRun.',
+    'Cancel an order and process refunds. Default refund method follows the original payment handler. Optionally charge a cancellation fee. WRITE.',
   inputSchema: ordersCancelInput,
   handler: async (input, api) => {
-    const { dryRun, iOrder, ...body } = input;
-    const url = `/v2/order/${iOrder}/cancel`;
-    if (dryRun) return dryRunPreview('POST', url, body);
-    return api.post(url, body);
+    const { iOrder, ...body } = input;
+    const url = `/v2/order/${iOrder}/cancel`;    return api.post(url, body);
   },
 });
 
@@ -58,73 +50,57 @@ const ordersRecordPaymentInput = z.object({
   paymentHandler: z
     .string()
     .describe('Offline handler only: onsite, transfer, cash, izettle, sumup, payleven, pos_card, pos_cash, …'),
-  reference: z.string().optional().describe('External reference (receipt no., bank reference, …)'),
-  dryRun: dryRunField,
-});
+  reference: z.string().optional().describe('External reference (receipt no., bank reference, …)'),});
 
 const ordersRecordPayment = defineTool({
   name: 'orders_record_payment',
   description:
-    'Record an offline payment on an order (cash/transfer/POS). Online handlers (Stripe, PayPal, …) are NOT allowed here; those are handled by their provider integrations. WRITE — defaults to dryRun.',
+    'Record an offline payment on an order (cash/transfer/POS). Online handlers (Stripe, PayPal, …) are NOT allowed here; those are handled by their provider integrations. WRITE.',
   inputSchema: ordersRecordPaymentInput,
   handler: async (input, api) => {
-    const { dryRun, iOrder, ...body } = input;
-    const url = `/v2/order/${iOrder}/payments`;
-    if (dryRun) return dryRunPreview('POST', url, body);
-    return api.post(url, body);
+    const { iOrder, ...body } = input;
+    const url = `/v2/order/${iOrder}/payments`;    return api.post(url, body);
   },
 });
 
 // ── orders_refund_payment ─────────────────────────────────────
 const ordersRefundPaymentInput = z.object({
   iOrder: z.coerce.number().int().positive(),
-  iOrderPayment: z.coerce.number().int().positive().describe('Specific payment id to refund (from orders_get.payments[].iOrderPayment)'),
-  dryRun: dryRunField,
-});
+  iOrderPayment: z.coerce.number().int().positive().describe('Specific payment id to refund (from orders_get.payments[].iOrderPayment)'),});
 
 const ordersRefundPayment = defineTool({
   name: 'orders_refund_payment',
   description:
-    'Refund a specific OFFLINE payment (cash/transfer/POS). Online payments must be refunded via the provider portal directly. WRITE — defaults to dryRun.',
+    'Refund a specific OFFLINE payment (cash/transfer/POS). Online payments must be refunded via the provider portal directly. WRITE.',
   inputSchema: ordersRefundPaymentInput,
   handler: async (input, api) => {
-    const url = `/v2/order/${input.iOrder}/payments/${input.iOrderPayment}/refund`;
-    if (input.dryRun) return dryRunPreview('POST', url);
-    return api.post(url);
+    const url = `/v2/order/${input.iOrder}/payments/${input.iOrderPayment}/refund`;    return api.post(url);
   },
 });
 
 // ── orders_resend_confirmation ────────────────────────────────
 const ordersResendConfirmationInput = z.object({
-  iOrder: z.coerce.number().int().positive(),
-  dryRun: dryRunField,
-});
+  iOrder: z.coerce.number().int().positive(),});
 
 const ordersResendConfirmation = defineTool({
   name: 'orders_resend_confirmation',
-  description: 'Resend the order confirmation email to the customer. WRITE (sends email) — defaults to dryRun.',
+  description: 'Resend the order confirmation email to the customer. WRITE (sends email).',
   inputSchema: ordersResendConfirmationInput,
   handler: async (input, api) => {
-    const url = `/v2/order/${input.iOrder}/resend-confirmation`;
-    if (input.dryRun) return dryRunPreview('POST', url);
-    return api.post(url);
+    const url = `/v2/order/${input.iOrder}/resend-confirmation`;    return api.post(url);
   },
 });
 
 // ── orders_resend_invoice ─────────────────────────────────────
 const ordersResendInvoiceInput = z.object({
-  iOrder: z.coerce.number().int().positive(),
-  dryRun: dryRunField,
-});
+  iOrder: z.coerce.number().int().positive(),});
 
 const ordersResendInvoice = defineTool({
   name: 'orders_resend_invoice',
-  description: 'Resend the invoice email to the customer. WRITE (sends email) — defaults to dryRun.',
+  description: 'Resend the invoice email to the customer. WRITE (sends email).',
   inputSchema: ordersResendInvoiceInput,
   handler: async (input, api) => {
-    const url = `/v2/order/${input.iOrder}/resend-invoice`;
-    if (input.dryRun) return dryRunPreview('POST', url);
-    return api.post(url);
+    const url = `/v2/order/${input.iOrder}/resend-invoice`;    return api.post(url);
   },
 });
 
@@ -149,20 +125,16 @@ const ordersPatchRecipientInput = z.object({
   updateCustomerRecord: z
     .boolean()
     .optional()
-    .describe('If true, also updates the base customer record (not just the order recipient)'),
-  dryRun: dryRunField,
-});
+    .describe('If true, also updates the base customer record (not just the order recipient)'),});
 
 const ordersPatchRecipient = defineTool({
   name: 'orders_patch_recipient',
   description:
-    'Patch the recipient (billing/customer-facing) data of an order. Only provided fields change. Triggers invoice re-creation for binding orders if recipient-visible fields are modified. WRITE — defaults to dryRun.',
+    'Patch the recipient (billing/customer-facing) data of an order. Only provided fields change. Triggers invoice re-creation for binding orders if recipient-visible fields are modified. WRITE.',
   inputSchema: ordersPatchRecipientInput,
   handler: async (input, api) => {
-    const { dryRun, iOrder, ...body } = input;
-    const url = `/v2/order/${iOrder}/recipient`;
-    if (dryRun) return dryRunPreview('PATCH', url, body);
-    return api.patch(url, body);
+    const { iOrder, ...body } = input;
+    const url = `/v2/order/${iOrder}/recipient`;    return api.patch(url, body);
   },
 });
 
@@ -177,20 +149,16 @@ const ordersPatchFlagsInput = z.object({
   invoiceInfo: z
     .string()
     .optional()
-    .describe('Free-form text printed on the invoice. Changing this triggers invoice re-creation for binding orders.'),
-  dryRun: dryRunField,
-});
+    .describe('Free-form text printed on the invoice. Changing this triggers invoice re-creation for binding orders.'),});
 
 const ordersPatchFlags = defineTool({
   name: 'orders_patch_flags',
   description:
-    'Patch order flags / notes. Only provided fields change. Note: changing invoiceInfo or nonbinding re-creates the invoice for binding orders. WRITE — defaults to dryRun.',
+    'Patch order flags / notes. Only provided fields change. Note: changing invoiceInfo or nonbinding re-creates the invoice for binding orders. WRITE.',
   inputSchema: ordersPatchFlagsInput,
   handler: async (input, api) => {
-    const { dryRun, iOrder, ...body } = input;
-    const url = `/v2/order/${iOrder}/flags`;
-    if (dryRun) return dryRunPreview('PATCH', url, body);
-    return api.patch(url, body);
+    const { iOrder, ...body } = input;
+    const url = `/v2/order/${iOrder}/flags`;    return api.patch(url, body);
   },
 });
 

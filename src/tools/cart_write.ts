@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, ToolDefinition, dryRunField, dryRunPreview, coerceBool } from './types.js';
+import { defineTool, ToolDefinition, coerceBool } from './types.js';
 
 const isoDateTime = z.string().describe('ISO 8601 datetime, e.g. 2026-04-30T20:30:00');
 
@@ -14,20 +14,14 @@ const cartAddItemInput = z.object({
   iEventSlot: z.coerce.number().int().positive().optional().describe('EventSlot id (for slot-based bookings)'),
   attributes: z.string().optional().describe('Optional JSON attributes (language, nopicture, digital_value, …)'),
   manualAdjustment: z.coerce.number().optional().describe('Optional manual price adjustment'),
-  manualAdjustmentNotice: z.string().optional().describe('Reason for manual adjustment'),
-  dryRun: dryRunField,
-});
+  manualAdjustmentNotice: z.string().optional().describe('Reason for manual adjustment'),});
 
 const cartAddItem = defineTool({
   name: 'cart_add_item',
   description:
-    'Add one item to a cart. Creates a new cart if none exists and iCart is not provided. Permission: ADD-BOOKINGS. WRITE — defaults to dryRun.',
+    'Add one item to a cart. Creates a new cart if none exists and iCart is not provided. Permission: ADD-BOOKINGS. WRITE.',
   inputSchema: cartAddItemInput,
-  handler: async (input, api) => {
-    const { dryRun, ...body } = input;
-    if (dryRun) return dryRunPreview('POST', '/v2/order/cart/items', body);
-    return api.post('/v2/order/cart/items', body);
-  },
+  handler: async (input, api) => api.post('/v2/order/cart/items', input),
 });
 
 // ── cart_patch_item ───────────────────────────────────────────
@@ -40,19 +34,16 @@ const cartPatchItemInput = z.object({
   iEventSlot: z.coerce.number().int().positive().optional(),
   attributes: z.string().optional(),
   manualAdjustment: z.coerce.number().optional(),
-  manualAdjustmentNotice: z.string().optional(),
-  dryRun: dryRunField,
-});
+  manualAdjustmentNotice: z.string().optional(),});
 
 const cartPatchItem = defineTool({
   name: 'cart_patch_item',
   description:
-    'Modify a single field on a cart item. Only provided fields are changed; quantity=0 removes the item. Permission: ADD-BOOKINGS. WRITE — defaults to dryRun.',
+    'Modify a single field on a cart item. Only provided fields are changed; quantity=0 removes the item. Permission: ADD-BOOKINGS. WRITE.',
   inputSchema: cartPatchItemInput,
   handler: async (input, api) => {
-    const { dryRun, iCart, iCartItem, ...body } = input;
+    const { iCart, iCartItem, ...body } = input;
     const url = `/v2/order/cart/${iCart}/items/${iCartItem}`;
-    if (dryRun) return dryRunPreview('PATCH', url, body);
     return api.patch(url, body);
   },
 });
@@ -60,17 +51,14 @@ const cartPatchItem = defineTool({
 // ── cart_remove_item ──────────────────────────────────────────
 const cartRemoveItemInput = z.object({
   iCart: z.coerce.number().int().positive(),
-  iCartItem: z.coerce.number().int().positive(),
-  dryRun: dryRunField,
-});
+  iCartItem: z.coerce.number().int().positive(),});
 
 const cartRemoveItem = defineTool({
   name: 'cart_remove_item',
-  description: 'Remove an item from the cart. Permission: ADD-BOOKINGS. WRITE — defaults to dryRun.',
+  description: 'Remove an item from the cart. Permission: ADD-BOOKINGS. WRITE.',
   inputSchema: cartRemoveItemInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/items/${input.iCartItem}`;
-    if (input.dryRun) return dryRunPreview('DELETE', url);
     return api.delete(url);
   },
 });
@@ -78,18 +66,15 @@ const cartRemoveItem = defineTool({
 // ── cart_apply_coupon ─────────────────────────────────────────
 const cartApplyCouponInput = z.object({
   iCart: z.coerce.number().int().positive(),
-  iCoupon: z.coerce.number().int().positive().describe('Coupon id (use coupons_find first to get the id from a code)'),
-  dryRun: dryRunField,
-});
+  iCoupon: z.coerce.number().int().positive().describe('Coupon id (use coupons_find first to get the id from a code)'),});
 
 const cartApplyCoupon = defineTool({
   name: 'cart_apply_coupon',
-  description: 'Apply a coupon to the cart. WRITE — defaults to dryRun.',
+  description: 'Apply a coupon to the cart. WRITE.',
   inputSchema: cartApplyCouponInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/coupons`;
     const body = { iCoupon: input.iCoupon };
-    if (input.dryRun) return dryRunPreview('POST', url, body);
     return api.post(url, body);
   },
 });
@@ -97,34 +82,28 @@ const cartApplyCoupon = defineTool({
 // ── cart_remove_coupon ────────────────────────────────────────
 const cartRemoveCouponInput = z.object({
   iCart: z.coerce.number().int().positive(),
-  iCartCoupon: z.coerce.number().int().positive().describe('Cart coupon id (the iCartCoupon from cart_get response, NOT the coupon id)'),
-  dryRun: dryRunField,
-});
+  iCartCoupon: z.coerce.number().int().positive().describe('Cart coupon id (the iCartCoupon from cart_get response, NOT the coupon id)'),});
 
 const cartRemoveCoupon = defineTool({
   name: 'cart_remove_coupon',
-  description: 'Remove a coupon from the cart. WRITE — defaults to dryRun.',
+  description: 'Remove a coupon from the cart. WRITE.',
   inputSchema: cartRemoveCouponInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/coupons/${input.iCartCoupon}`;
-    if (input.dryRun) return dryRunPreview('DELETE', url);
     return api.delete(url);
   },
 });
 
 // ── cart_delete ───────────────────────────────────────────────
 const cartDeleteInput = z.object({
-  iCart: z.coerce.number().int().positive(),
-  dryRun: dryRunField,
-});
+  iCart: z.coerce.number().int().positive(),});
 
 const cartDelete = defineTool({
   name: 'cart_delete',
-  description: 'Delete an entire cart. WRITE — defaults to dryRun.',
+  description: 'Delete an entire cart. WRITE.',
   inputSchema: cartDeleteInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}`;
-    if (input.dryRun) return dryRunPreview('DELETE', url);
     return api.delete(url);
   },
 });
@@ -160,19 +139,16 @@ const cartCheckoutInput = z.object({
   internalInfo: z.string().optional(),
   nonbinding: coerceBool().optional().describe('Make the order a non-binding reservation'),
   nonbindingExpire: isoDateTime.optional().describe('Expiration timestamp for non-binding reservations'),
-  silent: coerceBool().optional().describe('Suppress notification emails'),
-  dryRun: dryRunField,
-});
+  silent: coerceBool().optional().describe('Suppress notification emails'),});
 
 const cartCheckout = defineTool({
   name: 'cart_checkout',
   description:
-    'Convert a cart into an order (the actual booking). On success returns the new iOrder. WRITE — defaults to dryRun. Sends confirmation email unless silent=true. Permission: ADD-BOOKINGS.',
+    'Convert a cart into an order (the actual booking). On success returns the new iOrder. WRITE. Sends confirmation email unless silent=true. Permission: ADD-BOOKINGS.',
   inputSchema: cartCheckoutInput,
   handler: async (input, api) => {
-    const { dryRun, iCart, ...body } = input;
+    const { iCart, ...body } = input;
     const url = `/v2/order/cart/${iCart}/checkout`;
-    if (dryRun) return dryRunPreview('POST', url, body);
     return api.post(url, body);
   },
 });

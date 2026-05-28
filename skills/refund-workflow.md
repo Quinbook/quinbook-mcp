@@ -50,13 +50,13 @@ orders_cancel({
 
 The fee surfaces as a separate `OrderItem` on the cancelled order with `source: "virtual"` (see `reference_cancel_fee_text.md` in the backend memory). The text is configurable per company in WebResources `name='cancel_fee'`.
 
-## Step 4 — Run the cancel (dry run first!)
+## Step 4 — Run the cancel
 
-`orders_cancel` defaults to `dryRun: true`. Always:
+`orders_cancel` executes immediately — there is no dry-run. Always:
 
-1. Run with `dryRun: true` to get the preview
-2. Show preview to user
-3. Run with `dryRun: false` only after explicit confirmation
+1. Summarise the planned cancel to the user: order, refund method, refund amount, any fee
+2. Get explicit confirmation in chat
+3. Only then call `orders_cancel`
 
 The response is `{ success, iOrder, refundMethod, refundAmount, fee, couponId? }`.
 
@@ -73,7 +73,7 @@ The response is `{ success, iOrder, refundMethod, refundAmount, fee, couponId? }
 Only when you want to refund a **single payment** without cancelling the whole order — e.g. the customer paid twice and you want to return one of the payments while keeping the booking active. The endpoint works **only for offline handlers** (cash, transfer, POS); online refunds go through their provider portal.
 
 ```
-orders_refund_payment({ iOrder: 12345, iOrderPayment: 67890, dryRun: false })
+orders_refund_payment({ iOrder: 12345, iOrderPayment: 67890 })
 ```
 
 ## Audit trail

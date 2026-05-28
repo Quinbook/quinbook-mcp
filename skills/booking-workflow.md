@@ -35,22 +35,13 @@ If the user wants to book for an existing customer, use `contacts_search({ searc
 
 For physical products (`stockitems`-type SKUs) the `address1`/`zip`/`city`/`country` fields are mandatory in the checkout body, even when `iCustomer` is set. The backend does not pull the address from the customer record automatically for physical-shipment products.
 
-## Step 3 — Add to cart (dry run first!)
+## Step 3 — Add to cart
 
-Call `cart_add_item` with `dryRun: true` first. The response shows the planned API call:
-
-```
-{
-  "dryRun": true,
-  "wouldCall": { "method": "POST", "url": "/v2/order/cart/items", "body": {...} }
-}
-```
-
-**Show the dryRun preview to the user.** Only run with `dryRun: false` after the user confirms. The handler returns the resulting cart with `iCart` and `iCartItem`.
+Write tools execute immediately — there is no dry-run preview. **Summarise what you are about to add (SKU, quantity, slot, price) and get the user's confirmation in chat before calling `cart_add_item`.** The handler returns the resulting cart with `iCart` and `iCartItem`.
 
 ## Step 4 — Optional: apply a coupon
 
-If the user mentioned a coupon code, look it up with `coupons_find({ code })` (which matches both the actual code and any alias). Then `cart_apply_coupon({ iCart, iCoupon, dryRun: true })` → confirm → `dryRun: false`.
+If the user mentioned a coupon code, look it up with `coupons_find({ code })` (which matches both the actual code and any alias). Then `cart_apply_coupon({ iCart, iCoupon })`.
 
 **Caveat**: there is a known backend NRE when a coupon with `validEvents` is applied to a cart item that has `iEventSlot: null` (only `iEvent` + `slotStart`/`end` set). If `cart_calculate` returns `ERR_9999 "Value cannot be null. (Parameter 'source')"` after a coupon-apply, remove the coupon (`cart_remove_coupon`) and either choose an explicit slot or skip the coupon.
 
@@ -58,9 +49,9 @@ If the user mentioned a coupon code, look it up with `coupons_find({ code })` (w
 
 `orders_cart_calculate({ id: iCart })` returns subtotal, fees, taxes, discount, total. Show the totals to the user before checkout.
 
-## Step 6 — Checkout (dry run first!)
+## Step 6 — Checkout
 
-`cart_checkout({ iCart, customer: { iCustomer? or full address }, paymentHandler, silent? })` with `dryRun: true` → preview → confirm → `dryRun: false`.
+`cart_checkout({ iCart, customer: { iCustomer? or full address }, paymentHandler, silent? })` creates the order immediately. **Show the calculated totals (Step 5) and get the user's explicit confirmation before calling it** — there is no dry-run.
 
 Payment handler hints:
 - `onsite` — pay in person, no money flows

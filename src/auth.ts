@@ -1,7 +1,9 @@
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { URL } from 'url';
 import open from 'open';
-import keytar from 'keytar';
 import axios from 'axios';
 import { Config } from './config.js';
 
@@ -9,7 +11,87 @@ const POLLING_REDIRECT_URI = 'urn:woizzer:polling';
 const POLLING_TIMEOUT_MS = 10 * 60 * 1000;
 const POLLING_INTERVAL_MS = 2000;
 
-const KEYTAR_SERVICE = 'quinbook-mcp';
+const SECRET_SERVICE = 'quinbook-mcp';
+
+// Token storage abstraction. Primary: OS keychain via keytar. Fallback: a
+// 0600 JSON file in ~/.quinbook-mcp. The fallback exists so the packaged
+// Desktop Extension (.mcpb) keeps working when keytar's native binary cannot
+// load — e.g. an ABI mismatch against Claude Desktop's bundled Node runtime,
+// or a platform the bundled prebuild was not built for. keytar stays primary
+// (and more secure) wherever it loads.
+interface SecretStore {
+  get(account: string): Promise<string | null>;
+  set(account: string, value: string): Promise<void>;
+  delete(account: string): Promise<void>;
+}
+
+class KeytarStore implements SecretStore {
+  constructor(private readonly kt: typeof import('keytar')) {}
+  get(account: string) {
+    return this.kt.getPassword(SECRET_SERVICE, account);
+  }
+  async set(account: string, value: string) {
+    await this.kt.setPassword(SECRET_SERVICE, account, value);
+  }
+  async delete(account: string) {
+    await this.kt.deletePassword(SECRET_SERVICE, account);
+  }
+}
+
+class FileStore implements SecretStore {
+  private readonly file: string;
+  constructor() {
+    const dir = path.join(os.homedir(), '.quinbook-mcp');
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    this.file = path.join(dir, 'secrets.json');
+  }
+  private readAll(): Record<string, string> {
+    try {
+      return JSON.parse(fs.readFileSync(this.file, 'utf8')) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
+  private writeAll(data: Record<string, string>): void {
+    fs.writeFileSync(this.file, JSON.stringify(data), { mode: 0o600 });
+  }
+  async get(account: string) {
+    return this.readAll()[account] ?? null;
+  }
+  async set(account: string, value: string) {
+    const data = this.readAll();
+    data[account] = value;
+    this.writeAll(data);
+  }
+  async delete(account: string) {
+    const data = this.readAll();
+    delete data[account];
+    this.writeAll(data);
+  }
+}
+
+let storePromise: Promise<SecretStore> | null = null;
+function getStore(): Promise<SecretStore> {
+  if (!storePromise) {
+    storePromise = (async (): Promise<SecretStore> => {
+      try {
+        const mod: any = await import('keytar');
+        const kt = (mod.default ?? mod) as typeof import('keytar');
+        // Probe the native binding so an ABI/load failure surfaces here.
+        await kt.getPassword(SECRET_SERVICE, '__probe__');
+        process.stderr.write('[quinbook-mcp] Token storage: OS keychain (keytar).\n');
+        return new KeytarStore(kt);
+      } catch (e) {
+        process.stderr.write(
+          `[quinbook-mcp] keytar unavailable (${(e as Error).message}); ` +
+            'using file token store at ~/.quinbook-mcp/secrets.json\n',
+        );
+        return new FileStore();
+      }
+    })();
+  }
+  return storePromise;
+}
 
 export interface TokenSet {
   access_token: string;
@@ -49,7 +131,7 @@ function activeKey(cfg: Config): string {
 }
 
 async function loadTokensForCompany(cfg: Config, iCompany: number): Promise<TokenSet | null> {
-  const raw = await keytar.getPassword(KEYTAR_SERVICE, tokenKey(cfg, iCompany));
+  const raw = await (await getStore()).get(tokenKey(cfg, iCompany));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as TokenSet;
@@ -59,22 +141,22 @@ async function loadTokensForCompany(cfg: Config, iCompany: number): Promise<Toke
 }
 
 async function saveTokensForCompany(cfg: Config, iCompany: number, tokens: TokenSet): Promise<void> {
-  await keytar.setPassword(KEYTAR_SERVICE, tokenKey(cfg, iCompany), JSON.stringify(tokens));
+  await (await getStore()).set(tokenKey(cfg, iCompany), JSON.stringify(tokens));
 }
 
 async function clearTokensForCompany(cfg: Config, iCompany: number): Promise<void> {
-  await keytar.deletePassword(KEYTAR_SERVICE, tokenKey(cfg, iCompany));
+  await (await getStore()).delete(tokenKey(cfg, iCompany));
 }
 
 async function loadActiveCompany(cfg: Config): Promise<number | null> {
-  const raw = await keytar.getPassword(KEYTAR_SERVICE, activeKey(cfg));
+  const raw = await (await getStore()).get(activeKey(cfg));
   if (!raw) return null;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 async function saveActiveCompany(cfg: Config, iCompany: number): Promise<void> {
-  await keytar.setPassword(KEYTAR_SERVICE, activeKey(cfg), String(iCompany));
+  await (await getStore()).set(activeKey(cfg), String(iCompany));
 }
 
 function nowSec(): number {
