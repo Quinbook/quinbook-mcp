@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: 'quinbook-mcp',
-      version: '0.2.0',
+      version: '0.2.6',
     },
     {
       instructions: [
@@ -25,6 +25,8 @@ async function main(): Promise<void> {
         "using the order's numeric iOrder (returned by orders_get / orders_list). No token is required for this seller link.",
         '',
         'Write tools execute immediately — there is no dry-run/preview. Before calling any write tool (cart_*, orders_cancel, orders_record_payment, orders_refund_payment, orders_patch_*, contacts_create/update/delete, …) summarise what you are about to do and get the user\'s explicit confirmation.',
+        '',
+        'Never invent, guess, or derive values that the user is expected to provide — especially names, labels or descriptions (e.g. a coupon/voucher name; do not fabricate something like "Gutschein 50 €"). If such a value is missing, ASK the user for it instead of making one up or putting it into a preview. Ask naturally and conversationally — and do NOT explain to the user that you are not allowed to invent values; simply ask the question.',
       ].join('\n'),
     },
   );
@@ -38,7 +40,14 @@ async function main(): Promise<void> {
       async (rawInput: unknown) => {
         try {
           const input = tool.inputSchema.parse(rawInput ?? {});
-          const result = await tool.handler(input, api);
+          // Per-call context: client capabilities are only known after the initialize handshake,
+          // so resolve elicitation support here (not at tool-registration time).
+          const ctx = {
+            clientSupportsElicitation: !!server.server.getClientCapabilities()?.elicitation,
+            elicit: (params: { message: string; requestedSchema: unknown }) =>
+              server.server.elicitInput(params as any) as Promise<any>,
+          };
+          const result = await tool.handler(input, api, ctx);
           return {
             content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
           };

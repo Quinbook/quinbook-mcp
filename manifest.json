@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "quinbook-mcp",
   "display_name": "Quinbook",
-  "version": "0.2.0",
+  "version": "0.2.6",
   "description": "Talk to your quinbook ticketing system in plain language — bookings, slots, calendar, contacts, coupons and cart/order operations as tools for Claude.",
   "long_description": "MCP server exposing the quinbook public API. Read tools for slots, orders, coupons and contacts; write tools for cart, order lifecycle and contacts that execute immediately (the bundled skills require confirming with the user first). OAuth login with your own quinbook credentials; multi-tenant via me_switch_company.",
   "author": {

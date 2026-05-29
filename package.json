@@ -1,6 +1,6 @@
 {
   "name": "@quinbook/mcp-api",
-  "version": "0.2.0",
+  "version": "0.2.6",
   "private": true,
   "description": "Model Context Protocol server for the quinbook ticketing API — exposes bookings, slots, calendar, contacts, coupons and shop operations as tools for Claude and other AI assistants.",
   "license": "MIT",
