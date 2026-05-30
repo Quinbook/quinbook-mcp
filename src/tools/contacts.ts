@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolDefinition, coerceBool } from './types.js';
+import { MissingField, needsInputPayload, resolveMissing } from './needs_input.js';
 
 // All endpoints in this module are class-level Internal in the backend
 // (ContactController, CustomerController). Per the "Internal but
@@ -114,12 +115,43 @@ const contactWritableFields = z.object({
 
 const contactsCreateInput = contactWritableFields.extend({});
 
+// Identity gate: the real endpoint (CoreApi ContactController.CreateContact) requires AT LEAST ONE of
+// these four — NOT all of them, and NOT gender (the stricter jQuery rules in the WebCore ContactDetail
+// view are not what the API enforces). Mirror the endpoint, not the legacy form. See
+// docs/plans/aitools-mcp-annotation-rollout.md.
+const IDENTITY_FIELDS = ['firstName', 'lastName', 'emailAddress', 'companyName'] as const;
+const IDENTITY_PROMPTS: MissingField[] = [
+  { field: 'firstName', question: 'Wie lautet der Vorname?', primitive: { type: 'string', title: 'Vorname' } },
+  { field: 'lastName', question: 'Wie lautet der Nachname?', primitive: { type: 'string', title: 'Nachname' } },
+  { field: 'emailAddress', question: 'Wie lautet die E-Mail-Adresse?', primitive: { type: 'string', title: 'E-Mail' } },
+  { field: 'companyName', question: 'Wie lautet der Firmenname?', primitive: { type: 'string', title: 'Firma' } },
+];
+
+function hasIdentity(input: Record<string, unknown>): boolean {
+  return IDENTITY_FIELDS.some((f) => typeof input[f] === 'string' && (input[f] as string).trim() !== '');
+}
+
+const IDENTITY_MESSAGE = 'Für den neuen Kontakt fehlt eine Angabe — bitte mindestens Vor-/Nachname, E-Mail oder Firma angeben.';
+
 const contactsCreate = defineTool({
   name: 'contacts_create',
   description:
-    'Create a new contact (and underlying customer record). At least one of firstName/lastName/companyName/emailAddress required. WRITE. (Internal — MCP-allowed)',
+    'Create a new contact (and underlying customer record). At least one of firstName, lastName, '
+    + 'emailAddress or companyName is required — if none is given, ask the user (do not invent a name). '
+    + 'WRITE. (Internal — MCP-allowed)',
   inputSchema: contactsCreateInput,
-  handler: async (input, api) => api.post('/v1/contact', input),
+  handler: async (input, api, ctx) => {
+    if (!hasIdentity(input)) {
+      // At-least-one-of rule → render all four as optional, then re-validate the merged result.
+      const res = await resolveMissing(ctx, IDENTITY_MESSAGE, IDENTITY_PROMPTS, false);
+      if (res.kind === 'gate' || res.kind === 'cancelled') return res.payload;
+      if (res.kind === 'collected') {
+        input = { ...input, ...res.values };
+        if (!hasIdentity(input)) return needsInputPayload(IDENTITY_MESSAGE, IDENTITY_PROMPTS);
+      }
+    }
+    return api.post('/v1/contact', input);
+  },
 });
 
 const contactsUpdateInput = contactWritableFields.extend({

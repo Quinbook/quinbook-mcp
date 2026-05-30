@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import { defineTool, ToolDefinition, coerceBool } from './types.js';
+import { MissingField, needsInputPayload, resolveMissing } from './needs_input.js';
+
+// Offline payment handlers accepted by the endpoint. Authoritative source: OrderV2Controller.IsOfflineHandler
+// → _offlineHandlers = { cash, transfer, izettle, sumup, payleven } plus any handler starting with "pos_".
+// NOTE: "onsite" is NOT accepted here (the old tool description wrongly listed it) — it would be rejected
+// with PAYMENT_HANDLER_NOT_ALLOWED. pos_card / pos_cash are concrete examples of the pos_* prefix.
+const OFFLINE_HANDLERS = ['cash', 'transfer', 'izettle', 'sumup', 'payleven', 'pos_card', 'pos_cash'] as const;
 
 const isoDateTime = z.string().describe('ISO 8601 datetime');
 
@@ -29,13 +36,15 @@ const ordersCancelInput = z.object({
     .optional()
     .describe('Use "overpayed" to only refund the overpaid amount (partial refund).'),
   reason: z.string().optional().describe('Cancellation reason (stored in audit log)'),
-  fee: z.coerce.number().optional().describe('Cancellation fee to deduct from refund amount'),
+  fee: z.coerce.number().optional().describe('Cancellation fee to deduct from refund. Only set if the user specified one — never invent a fee; omit it to refund in full.'),
   reference: z.string().optional().describe('Payment reference (e.g. bank transfer id)'),});
 
 const ordersCancel = defineTool({
   name: 'orders_cancel',
   description:
-    'Cancel an order and process refunds. Default refund method follows the original payment handler. Optionally charge a cancellation fee. WRITE.',
+    'Cancel an order and process refunds. The endpoint requires no fields beyond the order id: the refund '
+    + 'method defaults to the original payment handler when omitted. Do NOT invent a cancellation fee or a '
+    + 'refund method — only pass them if the user explicitly asked for them. WRITE.',
   inputSchema: ordersCancelInput,
   handler: async (input, api) => {
     const { iOrder, ...body } = input;
@@ -44,22 +53,54 @@ const ordersCancel = defineTool({
 });
 
 // ── orders_record_payment ─────────────────────────────────────
+// Required by the endpoint (OrderServiceV2.RecordPaymentAsync): paymentHandler (non-blank) and amount (> 0).
+// Both are intentionally OPTIONAL in zod so a missing value reaches the handler and we can elicit it (a
+// schema-required field would be rejected at parse time, before the gate, with no chance to ask). These are
+// money-sensitive: the model must ASK, never invent an amount or handler.
 const ordersRecordPaymentInput = z.object({
   iOrder: z.coerce.number().int().positive(),
-  amount: z.coerce.number().positive().describe('Payment amount in order currency, must be > 0'),
+  amount: z.coerce.number().positive().optional().describe('Payment amount in order currency, must be > 0. Ask the user — never guess.'),
   paymentHandler: z
     .string()
-    .describe('Offline handler only: onsite, transfer, cash, izettle, sumup, payleven, pos_card, pos_cash, …'),
+    .optional()
+    .describe('Offline handler only: cash, transfer, izettle, sumup, payleven, or any pos_* (e.g. pos_card, pos_cash). NOT onsite. Ask the user — never guess.'),
   reference: z.string().optional().describe('External reference (receipt no., bank reference, …)'),});
+
+const RECORD_PAYMENT_MISSING: Record<'amount' | 'paymentHandler', MissingField> = {
+  amount: { field: 'amount', question: 'Welcher Betrag wurde gezahlt (in €)?', primitive: { type: 'number', title: 'Betrag (€)' } },
+  paymentHandler: {
+    field: 'paymentHandler',
+    question: 'Wie wurde gezahlt?',
+    primitive: { type: 'string', title: 'Zahlungsart', enum: [...OFFLINE_HANDLERS] },
+  },
+};
 
 const ordersRecordPayment = defineTool({
   name: 'orders_record_payment',
   description:
-    'Record an offline payment on an order (cash/transfer/POS). Online handlers (Stripe, PayPal, …) are NOT allowed here; those are handled by their provider integrations. WRITE.',
+    'Record an offline payment on an order. Allowed handlers: cash, transfer, izettle, sumup, payleven, or '
+    + 'any pos_* (NOT onsite). Online handlers (Stripe, PayPal, …) are rejected — those are handled by their '
+    + 'provider integrations. Amount and payment method are required — if either is missing, ASK the user; '
+    + 'never invent an amount or a payment method. WRITE.',
   inputSchema: ordersRecordPaymentInput,
-  handler: async (input, api) => {
+  handler: async (input, api, ctx) => {
+    const missing: MissingField[] = [];
+    if (input.amount === undefined || input.amount === null) missing.push(RECORD_PAYMENT_MISSING.amount);
+    if (!input.paymentHandler || String(input.paymentHandler).trim() === '') missing.push(RECORD_PAYMENT_MISSING.paymentHandler);
+
+    if (missing.length) {
+      const res = await resolveMissing(ctx, 'Für die Zahlungserfassung fehlen noch Angaben:', missing, true);
+      if (res.kind === 'gate' || res.kind === 'cancelled') return res.payload;
+      if (res.kind === 'collected') input = { ...input, ...res.values };
+      // Re-validate after collection; if still incomplete, hand back the gate so the model asks again.
+      if (input.amount === undefined || input.amount === null || !input.paymentHandler) {
+        return needsInputPayload('Für die Zahlungserfassung fehlen noch Angaben:', missing);
+      }
+    }
+
     const { iOrder, ...body } = input;
-    const url = `/v2/order/${iOrder}/payments`;    return api.post(url, body);
+    const url = `/v2/order/${iOrder}/payments`;
+    return api.post(url, body);
   },
 });
 
@@ -71,7 +112,9 @@ const ordersRefundPaymentInput = z.object({
 const ordersRefundPayment = defineTool({
   name: 'orders_refund_payment',
   description:
-    'Refund a specific OFFLINE payment (cash/transfer/POS). Online payments must be refunded via the provider portal directly. WRITE.',
+    'Refund a specific OFFLINE payment (cash/transfer/POS). Online payments must be refunded via the provider '
+    + 'portal directly. iOrderPayment must be a real payment id from orders_get.payments[].iOrderPayment — '
+    + 'never guess it; if you do not have it, look it up with orders_get first. WRITE.',
   inputSchema: ordersRefundPaymentInput,
   handler: async (input, api) => {
     const url = `/v2/order/${input.iOrder}/payments/${input.iOrderPayment}/refund`;    return api.post(url);

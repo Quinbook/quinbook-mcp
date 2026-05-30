@@ -5,7 +5,7 @@ const isoDateTime = z.string().describe('ISO 8601 datetime, e.g. 2026-04-30T20:3
 
 // ── cart_add_item ─────────────────────────────────────────────
 const cartAddItemInput = z.object({
-  iSku: z.coerce.number().int().positive().describe('SKU id to add'),
+  iSku: z.coerce.number().int().positive().describe('SKU id to add. A real article id from a read tool (slots_event, slots_get, …) — never guess it.'),
   quantity: z.coerce.number().int().min(1).max(9999).describe('Quantity'),
   iCart: z.coerce.number().int().positive().optional().describe('Cart id. If omitted, the most recent open cart is used or a new one is created.'),
   slotStart: isoDateTime.optional().describe('Slot start time (for time-based products)'),
@@ -66,11 +66,13 @@ const cartRemoveItem = defineTool({
 // ── cart_apply_coupon ─────────────────────────────────────────
 const cartApplyCouponInput = z.object({
   iCart: z.coerce.number().int().positive(),
-  iCoupon: z.coerce.number().int().positive().describe('Coupon id (use coupons_find first to get the id from a code)'),});
+  iCoupon: z.coerce.number().int().positive().describe('Coupon id. The endpoint only accepts the numeric id — if the customer gave you a code, resolve it with coupons_find first. Never invent an id.'),});
 
 const cartApplyCoupon = defineTool({
   name: 'cart_apply_coupon',
-  description: 'Apply a coupon to the cart. WRITE.',
+  description:
+    'Apply a coupon to the cart by its numeric id. If you only have a redemption code, look up the id with '
+    + 'coupons_find first — never guess the id. WRITE.',
   inputSchema: cartApplyCouponInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/coupons`;
@@ -144,7 +146,11 @@ const cartCheckoutInput = z.object({
 const cartCheckout = defineTool({
   name: 'cart_checkout',
   description:
-    'Convert a cart into an order (the actual booking). On success returns the new iOrder. WRITE. Sends confirmation email unless silent=true. Permission: ADD-BOOKINGS.',
+    'Convert a cart into an order (the actual booking). The cart must already contain items (an empty cart is '
+    + 'rejected) and customer data is required — pass iCustomer for an existing customer, or the customer\'s '
+    + 'real details to create one; never invent customer data. paymentHandler defaults to the cart\'s handler '
+    + 'if omitted. On success returns the new iOrder. WRITE. Sends confirmation email unless silent=true. '
+    + 'Permission: ADD-BOOKINGS.',
   inputSchema: cartCheckoutInput,
   handler: async (input, api) => {
     const { iCart, ...body } = input;
