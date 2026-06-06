@@ -22,6 +22,12 @@ directory policy, which prohibits connectors from executing outbound financial t
   there is no sandbox. The description now says so.
 - Server `instructions` document the no-financial-transactions boundary explicitly.
 
+### Security
+- `npm audit fix`: resolved all 6 reported advisories in shipped production
+  dependencies (2 high — axios, fast-uri; 4 moderate) via semver-compatible
+  updates (no breaking major bumps; axios → 1.17.0). `npm audit` now reports 0
+  vulnerabilities. Build + tests green.
+
 ## [0.2.7] - 2026-06-05
 
 ### Added
