@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { allTools } from './index.test-helper.js';
 
 describe('Tool registry', () => {
-  it('registers the expected number of tools (36)', () => {
-    expect(allTools.length).toBeGreaterThanOrEqual(36);
+  it('registers the expected number of tools (35)', () => {
+    expect(allTools.length).toBeGreaterThanOrEqual(35);
   });
 
   it('all tools have unique names', () => {

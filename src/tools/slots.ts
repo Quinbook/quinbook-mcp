@@ -17,6 +17,7 @@ const slotsCalendar = defineTool({
   name: 'slots_calendar',
   description:
     'Get the company calendar for a specific date — all events and their slots, with availability. Returns a compact projection (id, name, start/end, capacity/freeSeats/takenSeats, isAvailable) so the response fits into AI tool-output limits.',
+  annotations: { title: 'Company calendar (day)', readOnlyHint: true, openWorldHint: true },
   inputSchema: slotsCalendarInput,
   handler: async (input, api) => {
     const { date, ...query } = input;
@@ -34,6 +35,7 @@ const slotsEventInput = z.object({
 const slotsEvent = defineTool({
   name: 'slots_event',
   description: 'Get all slots of one event on one date.',
+  annotations: { title: 'Event slots (day)', readOnlyHint: true, openWorldHint: true },
   inputSchema: slotsEventInput,
   handler: async (input, api) => {
     const { ievent, date, ...query } = input;
@@ -49,6 +51,7 @@ const slotsGetInput = z.object({
 const slotsGet = defineTool({
   name: 'slots_get',
   description: 'Fetch a single slot by id (optionally restricted to a date).',
+  annotations: { title: 'Get slot', readOnlyHint: true, openWorldHint: true },
   inputSchema: slotsGetInput,
   handler: async (input, api) => {
     const path = input.date ? `/v1/slots/${input.id}/${input.date}` : `/v1/slots/${input.id}`;

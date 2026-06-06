@@ -3,6 +3,7 @@ import { orderWriteTools } from './orders_write.js';
 import { ToolContext, ElicitOutcome } from './types.js';
 
 const recordPayment = orderWriteTools.find((t) => t.name === 'orders_record_payment')!;
+const cancel = orderWriteTools.find((t) => t.name === 'orders_cancel')!;
 
 interface PostCall {
   url: string;
@@ -17,6 +18,40 @@ function makeFakeApi(calls: PostCall[]): any {
     },
   };
 }
+
+/** Fake api that serves a fixed order on GET and records POSTs — for the cancel payout guard. */
+function makeFakeApiWithOrder(order: unknown, calls: PostCall[]): any {
+  return {
+    get: async (_url: string) => order,
+    post: async (url: string, body: unknown) => {
+      calls.push({ url, body });
+      return { ok: true };
+    },
+  };
+}
+
+describe('orders_cancel payout guard', () => {
+  it('refuses (throws) when the order has a payment — no cancel POST', async () => {
+    const calls: PostCall[] = [];
+    const api = makeFakeApiWithOrder({ iOrder: 99, totalPayed: 10.99 }, calls);
+    await expect(cancel.handler({ iOrder: 99 }, api, undefined)).rejects.toThrow(/refund\/payout/i);
+    expect(calls.length).toBe(0);
+  });
+
+  it('cancels when the order has no payment (totalPayed 0)', async () => {
+    const calls: PostCall[] = [];
+    const api = makeFakeApiWithOrder({ iOrder: 42, totalPayed: 0 }, calls);
+    await cancel.handler({ iOrder: 42 }, api, undefined);
+    expect(calls).toEqual([{ url: '/v2/order/42/cancel', body: {} }]);
+  });
+
+  it('cancels when totalPayed is absent (treated as unpaid)', async () => {
+    const calls: PostCall[] = [];
+    const api = makeFakeApiWithOrder({ iOrder: 7 }, calls);
+    await cancel.handler({ iOrder: 7 }, api, undefined);
+    expect(calls).toEqual([{ url: '/v2/order/7/cancel', body: {} }]);
+  });
+});
 
 function elicitCtx(outcome: ElicitOutcome, captured: any[] = []): ToolContext {
   return {

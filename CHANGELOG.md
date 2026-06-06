@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.8] - 2026-06-06
+
+Directory-readiness release: brings the connector in line with the Anthropic software
+directory policy, which prohibits connectors from executing outbound financial transactions.
+
+### Removed
+- **`orders_refund_payment`** — issuing a refund is an outbound financial transaction and is
+  not permitted for directory connectors. Refunds must be handled by staff in the quinbook
+  backoffice. Tool count 38 → 37.
+
+### Changed
+- **`orders_cancel` now refuses paid orders.** Before cancelling, the tool loads the order and,
+  if it has received any payment (`totalPayed > 0`), returns an error pointing to the backoffice
+  instead of triggering a refund. Unpaid / reserved bookings still cancel normally (this only
+  releases slots — no money moves).
+- **`manifest.json` API-server description fixed.** It no longer labels `api3.quinbook.com` as a
+  "Beta/test" server for trying out write operations — every server talks to live production data,
+  there is no sandbox. The description now says so.
+- Server `instructions` document the no-financial-transactions boundary explicitly.
+
+## [0.2.7] - 2026-06-05
+
+### Added
+- **MCP tool annotations on all 38 tools** — each tool now carries a human-readable
+  `title` plus a `readOnlyHint` (17 reads) or `destructiveHint` (21 writes; 10 marked
+  destructive: cancel/refund/delete/patch). Registration moved to the modern
+  `server.registerTool` API. Required for the Anthropic connector directory and lets
+  MCP clients render correct safety affordances.
+- **`privacy_policies`** in `manifest.json` pointing to <https://quinbook.com/de/privacy>,
+  plus a **Privacy Policy** section in the README (data collected, usage, local token
+  storage, third parties, retention, contact).
+- Regression test (`annotations.test.ts`) asserting every tool ships a `title` and the
+  correct read/write hint.
+
+### Changed
+- **`manifest.json`: `dxt_version: "0.1"` → `manifest_version: "0.2"`** (directory
+  submission requires manifest_version 0.2+).
+- Legal entity aligned to **Woizzer AG** across `manifest.json`, `LICENSE` and README
+  (was inconsistently "quinbook GmbH" in the license).
+- README tool count corrected (36 → 38; `coupons_create` / `get_tax_groups` were missing).
+
 ## [Unreleased]
 
 ### Changed

@@ -20,6 +20,7 @@ const cartAddItem = defineTool({
   name: 'cart_add_item',
   description:
     'Add one item to a cart. Creates a new cart if none exists and iCart is not provided. Permission: ADD-BOOKINGS. WRITE.',
+  annotations: { title: 'Add item to cart', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: cartAddItemInput,
   handler: async (input, api) => api.post('/v2/order/cart/items', input),
 });
@@ -40,6 +41,7 @@ const cartPatchItem = defineTool({
   name: 'cart_patch_item',
   description:
     'Modify a single field on a cart item. Only provided fields are changed; quantity=0 removes the item. Permission: ADD-BOOKINGS. WRITE.',
+  annotations: { title: 'Modify cart item', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   inputSchema: cartPatchItemInput,
   handler: async (input, api) => {
     const { iCart, iCartItem, ...body } = input;
@@ -56,6 +58,7 @@ const cartRemoveItemInput = z.object({
 const cartRemoveItem = defineTool({
   name: 'cart_remove_item',
   description: 'Remove an item from the cart. Permission: ADD-BOOKINGS. WRITE.',
+  annotations: { title: 'Remove cart item', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   inputSchema: cartRemoveItemInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/items/${input.iCartItem}`;
@@ -73,6 +76,7 @@ const cartApplyCoupon = defineTool({
   description:
     'Apply a coupon to the cart by its numeric id. If you only have a redemption code, look up the id with '
     + 'coupons_find first — never guess the id. WRITE.',
+  annotations: { title: 'Apply coupon to cart', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: cartApplyCouponInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/coupons`;
@@ -89,6 +93,7 @@ const cartRemoveCouponInput = z.object({
 const cartRemoveCoupon = defineTool({
   name: 'cart_remove_coupon',
   description: 'Remove a coupon from the cart. WRITE.',
+  annotations: { title: 'Remove cart coupon', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   inputSchema: cartRemoveCouponInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}/coupons/${input.iCartCoupon}`;
@@ -103,6 +108,7 @@ const cartDeleteInput = z.object({
 const cartDelete = defineTool({
   name: 'cart_delete',
   description: 'Delete an entire cart. WRITE.',
+  annotations: { title: 'Delete cart', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   inputSchema: cartDeleteInput,
   handler: async (input, api) => {
     const url = `/v2/order/cart/${input.iCart}`;
@@ -151,6 +157,7 @@ const cartCheckout = defineTool({
     + 'real details to create one; never invent customer data. paymentHandler defaults to the cart\'s handler '
     + 'if omitted. On success returns the new iOrder. WRITE. Sends confirmation email unless silent=true. '
     + 'Permission: ADD-BOOKINGS.',
+  annotations: { title: 'Checkout cart (create booking)', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: cartCheckoutInput,
   handler: async (input, api) => {
     const { iCart, ...body } = input;

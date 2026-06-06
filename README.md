@@ -2,7 +2,7 @@
 
 MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook.com) public API as tools for AI assistants — Claude Desktop, Claude Code, IDEs and any other MCP-compatible client.
 
-> **Status:** v0.2.0 — PKCE auth, 36 tools, Desktop Extension (`.mcpb`) packaging.
+> **Status:** v0.2.8 — PKCE auth, 37 tools (each with MCP annotations), Desktop Extension (`.mcpb`) packaging. No outbound financial transactions (no refunds; paid orders cannot be cancelled here).
 
 ## Highlights
 
@@ -13,7 +13,7 @@ MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook
 - Multi-tenant: per-company token cache, switch via `me_switch_company`
 - Write tools execute immediately — the model is expected to confirm with the user first (the bundled skills enforce this)
 
-## Tools (36)
+## Tools (37)
 
 ### Identity & Multi-Tenancy
 
@@ -26,13 +26,23 @@ MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook
 - **Slots:** `slots_calendar`, `slots_event`, `slots_get`
 - **Orders V2:** `orders_list`, `orders_get`, `orders_cart_list`, `orders_cart_get`, `orders_cart_calculate`
 - **Coupons:** `coupons_get`, `coupons_find`, `coupons_used`
+- **Tax:** `get_tax_groups`
 - **Contacts:** `contacts_search`, `contacts_get`, `contacts_notices_list`
 
 ### Write (execute immediately — confirm first)
 
 - **Cart mutations:** `cart_add_item`, `cart_patch_item`, `cart_remove_item`, `cart_apply_coupon`, `cart_remove_coupon`, `cart_delete`, `cart_checkout`
-- **Order lifecycle:** `orders_to_cart`, `orders_cancel`, `orders_record_payment`, `orders_refund_payment`, `orders_resend_confirmation`, `orders_resend_invoice`, `orders_patch_recipient`, `orders_patch_flags`
+- **Order lifecycle:** `orders_to_cart`, `orders_cancel` (unpaid orders only), `orders_record_payment` (offline only), `orders_resend_confirmation`, `orders_resend_invoice`, `orders_patch_recipient`, `orders_patch_flags`
+- **Coupons:** `coupons_create`
 - **Contacts:** `contacts_add_notice`, `contacts_create`, `contacts_update`, `contacts_delete`
+
+> **No outbound money movement.** This connector deliberately cannot execute outbound financial
+> transactions. There is no refund tool, and `orders_cancel` refuses any order that has received a
+> payment (`totalPayed > 0`) — cancelling or refunding a paid order has to be done by staff in the
+> quinbook backoffice. `orders_record_payment` only books *offline* payments (cash/transfer/POS); it
+> does not charge cards.
+
+Every tool ships with MCP annotations — a human-readable `title` plus a `readOnlyHint` (reads) or `destructiveHint` (writes) — so MCP clients can render the right safety affordances.
 
 ## Configuration
 
@@ -141,8 +151,33 @@ Ensure your OAuth app on the quinbook backend has `redirect_uris` set to a list 
 **Q: How do I log out / switch user?**  
 Delete the keytar entries via your OS credential manager (search for `quinbook-mcp` service), then call any tool — the polling-flow login will re-trigger.
 
+## Privacy Policy
+
+This MCP server is a thin client to the quinbook API operated by **Woizzer AG**. The full,
+authoritative privacy policy is published at **<https://quinbook.com/de/privacy>**. A summary of
+how *this connector* handles data:
+
+- **What it collects / processes.** Your quinbook login credentials are entered directly on the
+  quinbook OAuth page — the server never sees or stores your password. It processes the OAuth
+  access/refresh tokens it receives, and the request/response payloads of the API calls you trigger
+  (bookings, orders, contacts, coupons, slots). These are the same data you already manage in your
+  quinbook account.
+- **How it uses the data.** Solely to execute the tool calls you (via the AI assistant) request
+  against the quinbook API. No analytics, no telemetry, no profiling.
+- **Where / how long it stores it.** Tokens are stored **locally on your machine** — in the OS
+  credential store (`keytar`) or, as a fallback, a file at `~/.quinbook-mcp/secrets.json`
+  (mode 0600). Nothing is stored on any server operated by this project. Tokens live until they
+  expire (refresh token ~30 days) or you delete them (see "How do I log out" above). API payloads
+  are not persisted by the connector beyond the lifetime of the request.
+- **Third parties.** Data flows only between your machine and the quinbook API host you configure
+  (`QUINBOOK_API_BASE_URL`, default `https://api.quinbook.com`). When run inside an AI client
+  (Claude Desktop, etc.), tool inputs/outputs are also processed by that client per its own privacy
+  policy. No other third party receives data from this connector.
+- **Contact.** Data controller: Woizzer AG, Osakaallee 2, 20457 Hamburg, Germany —
+  <support@quinbook.com>.
+
 ## License
 
-[MIT](./LICENSE) © quinbook GmbH.
+[MIT](./LICENSE) © Woizzer AG.
 
-The MIT license covers **the code in this repository** (the MCP server itself). Use of the quinbook API endpoints exposed through this server is governed by the quinbook Terms of Service. "quinbook" is a trademark of quinbook GmbH.
+The MIT license covers **the code in this repository** (the MCP server itself). Use of the quinbook API endpoints exposed through this server is governed by the quinbook Terms of Service. "quinbook" is a trademark of Woizzer AG.

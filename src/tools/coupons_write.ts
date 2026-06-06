@@ -91,6 +91,13 @@ const couponsCreate = defineTool({
     + 'ungewöhnlich benannte). Fehlt eine Pflichtangabe, beim Nutzer nachfragen und erneut aufrufen. '
     + 'Führt nach Klärung der Pflichtangaben DIREKT aus (keine separate Vorschau) — hol dir vorher die '
     + 'Bestätigung des Nutzers im Chat. WRITE. (Internal — MCP-allowed)',
+  annotations: {
+    title: 'Create coupon / voucher',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+  },
   inputSchema: couponsCreateInput,
   handler: async (input, api, ctx) => {
     // Execute directly (no dry-run preview) once required fields are present — consistent with the other
@@ -154,6 +161,7 @@ const getTaxGroups = defineTool({
     + 'Nutze das, um bei einem Wertgutschein (coupons_create type="cash") die Steuergruppe zu ermitteln. '
     + 'Biete dem Nutzer IMMER ALLE zurückgegebenen Gruppen zur Auswahl an — filtere/lasse keine weg, auch '
     + 'nicht test- oder ungewöhnlich benannte. (Internal — MCP-allowed)',
+  annotations: { title: 'List tax groups', readOnlyHint: true, openWorldHint: true },
   inputSchema: z.object({}),
   handler: async (_input, api) => api.post('/v1/ai/tools/get_tax_groups', {}),
 });

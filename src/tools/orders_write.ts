@@ -18,6 +18,7 @@ const ordersToCart = defineTool({
   name: 'orders_to_cart',
   description:
     'Copy an existing order into a fresh cart for re-booking / modification. The original order remains untouched until the new cart is checked out (which adopts the source order via i_parent). WRITE.',
+  annotations: { title: 'Copy order to new cart', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: ordersToCartInput,
   handler: async (input, api) => {
     const url = `/v2/order/${input.iOrder}/to-cart`;    return api.post(url);
@@ -25,29 +26,37 @@ const ordersToCart = defineTool({
 });
 
 // ── orders_cancel ─────────────────────────────────────────────
+// Only unpaid orders can be cancelled here (see the payout guard in the handler), so the refund-related
+// fields of the underlying endpoint (refundMethod / refundType / fee / reference) are intentionally not
+// exposed — there is never anything to refund.
 const ordersCancelInput = z.object({
   iOrder: z.coerce.number().int().positive(),
-  refundMethod: z
-    .enum(['online', 'coupon', 'transfer', 'onsite', 'cash', 'none'])
-    .optional()
-    .describe('Refund method. Leave empty for orders without payments.'),
-  refundType: z
-    .enum(['overpayed'])
-    .optional()
-    .describe('Use "overpayed" to only refund the overpaid amount (partial refund).'),
-  reason: z.string().optional().describe('Cancellation reason (stored in audit log)'),
-  fee: z.coerce.number().optional().describe('Cancellation fee to deduct from refund. Only set if the user specified one — never invent a fee; omit it to refund in full.'),
-  reference: z.string().optional().describe('Payment reference (e.g. bank transfer id)'),});
+  reason: z.string().optional().describe('Cancellation reason (stored in the order status history and audit log)'),});
 
 const ordersCancel = defineTool({
   name: 'orders_cancel',
   description:
-    'Cancel an order and process refunds. The endpoint requires no fields beyond the order id: the refund '
-    + 'method defaults to the original payment handler when omitted. Do NOT invent a cancellation fee or a '
-    + 'refund method — only pass them if the user explicitly asked for them. WRITE.',
+    'Cancel an order that has NOT received any payment (cancelling simply releases the reserved slots — no '
+    + 'money moves). If the order already has a payment, this tool refuses with an error and points to the '
+    + 'backoffice: cancelling a paid order would require issuing a refund/payout, which this connector is not '
+    + 'permitted to execute. WRITE.',
+  annotations: { title: 'Cancel unpaid order', readOnlyHint: false, destructiveHint: true, openWorldHint: true },
   inputSchema: ordersCancelInput,
   handler: async (input, api) => {
     const { iOrder, ...body } = input;
+    // Payout guard: never cancel an order that has received money. A paid cancellation triggers a refund,
+    // i.e. an outbound financial transaction, which this connector intentionally does not perform. Such cases
+    // must be handled by staff in the quinbook backoffice. `totalPayed` is the authoritative amount-received
+    // field on the V2 order (0 for unpaid / reserved bookings).
+    const order = (await api.get(`/v2/order/${iOrder}`)) as { totalPayed?: number } | null;
+    const totalPayed = Number(order?.totalPayed ?? 0);
+    if (totalPayed > 0) {
+      throw new Error(
+        `Order ${iOrder} has a payment (totalPayed=${totalPayed}). Cancelling it would require issuing a `
+        + `refund/payout, which this connector is not permitted to do. Please cancel and refund the order in the `
+        + `quinbook backoffice: https://quinbook.com/seller/bookings/order/${iOrder}`,
+      );
+    }
     const url = `/v2/order/${iOrder}/cancel`;    return api.post(url, body);
   },
 });
@@ -82,6 +91,7 @@ const ordersRecordPayment = defineTool({
     + 'any pos_* (NOT onsite). Online handlers (Stripe, PayPal, …) are rejected — those are handled by their '
     + 'provider integrations. Amount and payment method are required — if either is missing, ASK the user; '
     + 'never invent an amount or a payment method. WRITE.',
+  annotations: { title: 'Record offline payment', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: ordersRecordPaymentInput,
   handler: async (input, api, ctx) => {
     const missing: MissingField[] = [];
@@ -104,22 +114,9 @@ const ordersRecordPayment = defineTool({
   },
 });
 
-// ── orders_refund_payment ─────────────────────────────────────
-const ordersRefundPaymentInput = z.object({
-  iOrder: z.coerce.number().int().positive(),
-  iOrderPayment: z.coerce.number().int().positive().describe('Specific payment id to refund (from orders_get.payments[].iOrderPayment)'),});
-
-const ordersRefundPayment = defineTool({
-  name: 'orders_refund_payment',
-  description:
-    'Refund a specific OFFLINE payment (cash/transfer/POS). Online payments must be refunded via the provider '
-    + 'portal directly. iOrderPayment must be a real payment id from orders_get.payments[].iOrderPayment — '
-    + 'never guess it; if you do not have it, look it up with orders_get first. WRITE.',
-  inputSchema: ordersRefundPaymentInput,
-  handler: async (input, api) => {
-    const url = `/v2/order/${input.iOrder}/payments/${input.iOrderPayment}/refund`;    return api.post(url);
-  },
-});
+// NOTE: orders_refund_payment was intentionally removed. Issuing a refund is an outbound financial
+// transaction, which the Anthropic directory policy prohibits for connectors. Refunds must be done by
+// staff in the quinbook backoffice. (orders_cancel likewise refuses paid orders — see its payout guard.)
 
 // ── orders_resend_confirmation ────────────────────────────────
 const ordersResendConfirmationInput = z.object({
@@ -128,6 +125,7 @@ const ordersResendConfirmationInput = z.object({
 const ordersResendConfirmation = defineTool({
   name: 'orders_resend_confirmation',
   description: 'Resend the order confirmation email to the customer. WRITE (sends email).',
+  annotations: { title: 'Resend confirmation email', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: ordersResendConfirmationInput,
   handler: async (input, api) => {
     const url = `/v2/order/${input.iOrder}/resend-confirmation`;    return api.post(url);
@@ -141,6 +139,7 @@ const ordersResendInvoiceInput = z.object({
 const ordersResendInvoice = defineTool({
   name: 'orders_resend_invoice',
   description: 'Resend the invoice email to the customer. WRITE (sends email).',
+  annotations: { title: 'Resend invoice email', readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   inputSchema: ordersResendInvoiceInput,
   handler: async (input, api) => {
     const url = `/v2/order/${input.iOrder}/resend-invoice`;    return api.post(url);
@@ -174,6 +173,7 @@ const ordersPatchRecipient = defineTool({
   name: 'orders_patch_recipient',
   description:
     'Patch the recipient (billing/customer-facing) data of an order. Only provided fields change. Triggers invoice re-creation for binding orders if recipient-visible fields are modified. WRITE.',
+  annotations: { title: 'Update order recipient', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   inputSchema: ordersPatchRecipientInput,
   handler: async (input, api) => {
     const { iOrder, ...body } = input;
@@ -198,6 +198,7 @@ const ordersPatchFlags = defineTool({
   name: 'orders_patch_flags',
   description:
     'Patch order flags / notes. Only provided fields change. Note: changing invoiceInfo or nonbinding re-creates the invoice for binding orders. WRITE.',
+  annotations: { title: 'Update order flags/notes', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   inputSchema: ordersPatchFlagsInput,
   handler: async (input, api) => {
     const { iOrder, ...body } = input;
@@ -209,7 +210,6 @@ export const orderWriteTools: ToolDefinition[] = [
   ordersToCart,
   ordersCancel,
   ordersRecordPayment,
-  ordersRefundPayment,
   ordersResendConfirmation,
   ordersResendInvoice,
   ordersPatchRecipient,

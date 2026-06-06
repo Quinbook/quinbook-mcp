@@ -8,6 +8,7 @@ const couponsGetInput = z.object({
 const couponsGet = defineTool({
   name: 'coupons_get',
   description: 'Fetch a single coupon by id. Requires LIST-CASHCOUPONS permission.',
+  annotations: { title: 'Get coupon', readOnlyHint: true, openWorldHint: true },
   inputSchema: couponsGetInput,
   handler: async (input, api) => api.get(`/v1/coupons/${input.id}`),
 });
@@ -19,6 +20,7 @@ const couponsFindInput = z.object({
 const couponsFind = defineTool({
   name: 'coupons_find',
   description: 'Find a coupon by its code (e.g. when validating a customer-entered code).',
+  annotations: { title: 'Find coupon by code', readOnlyHint: true, openWorldHint: true },
   inputSchema: couponsFindInput,
   handler: async (input, api) => api.get(`/v1/coupons/find/${encodeURIComponent(input.code)}`),
 });
@@ -30,6 +32,7 @@ const couponsUsedInput = z.object({
 const couponsUsed = defineTool({
   name: 'coupons_used',
   description: 'Get usage history of a coupon — orders that consumed it.',
+  annotations: { title: 'Coupon usage history', readOnlyHint: true, openWorldHint: true },
   inputSchema: couponsUsedInput,
   handler: async (input, api) => api.get(`/v1/coupons/${input.iCoupon}/used`),
 });

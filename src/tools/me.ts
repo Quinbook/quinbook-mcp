@@ -9,6 +9,7 @@ function buildWhoami(tokens: TokenManager): ToolDefinition {
     name: 'me_whoami',
     description:
       'Quick identity check: returns the active company id, user id, grant type, roles and session id. Reads the cached JWT — no API call. Useful as the first call to know which company the next operation will target.',
+    annotations: { title: 'Who am I', readOnlyHint: true, openWorldHint: false },
     inputSchema: meWhoamiInput,
     handler: async () => {
       const access = await tokens.getAccessToken();
@@ -43,6 +44,7 @@ const meCompanies = defineTool({
   name: 'me_companies',
   description:
     'List companies the authenticated user can switch to. Compact projection: id, name, city, country, timezone, isSelected. Use this when the user asks to switch company or you need to disambiguate which company to operate against.',
+  annotations: { title: 'List my companies', readOnlyHint: true, openWorldHint: true },
   inputSchema: meCompaniesInput,
   handler: async (input, api) => {
     const params: Record<string, unknown> = { compact: true };
@@ -60,6 +62,13 @@ function buildSwitchCompany(tokens: TokenManager): ToolDefinition {
     name: 'me_switch_company',
     description:
       'Switch the active company. The MCP server obtains a new access token bound to the target company via grant_type=switch_company and uses it for all subsequent tool calls. Use this once before running tools against a different company.',
+    annotations: {
+      title: 'Switch active company',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: meSwitchCompanyInput,
     handler: async (input) => {
       const newTokens = await tokens.switchCompany(input.iCompany);

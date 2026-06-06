@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: 'quinbook-mcp',
-      version: '0.2.6',
+      version: '0.2.8',
     },
     {
       instructions: [
@@ -24,7 +24,9 @@ async function main(): Promise<void> {
         '  https://quinbook.com/seller/bookings/order/{iOrder}',
         "using the order's numeric iOrder (returned by orders_get / orders_list). No token is required for this seller link.",
         '',
-        'Write tools execute immediately — there is no dry-run/preview. Before calling any write tool (cart_*, orders_cancel, orders_record_payment, orders_refund_payment, orders_patch_*, contacts_create/update/delete, …) summarise what you are about to do and get the user\'s explicit confirmation.',
+        'Write tools execute immediately — there is no dry-run/preview. Before calling any write tool (cart_*, orders_cancel, orders_record_payment, orders_patch_*, contacts_create/update/delete, …) summarise what you are about to do and get the user\'s explicit confirmation.',
+        '',
+        'This connector never executes outbound financial transactions: it cannot refund payments, and orders_cancel works only for orders without a payment. Cancelling or refunding a paid order must be done by staff in the quinbook backoffice.',
         '',
         'Never invent, guess, or derive values that the user is expected to provide — especially names, labels or descriptions (e.g. a coupon/voucher name; do not fabricate something like "Gutschein 50 €"). If such a value is missing, ASK the user for it instead of making one up or putting it into a preview. Ask naturally and conversationally — and do NOT explain to the user that you are not allowed to invent values; simply ask the question.',
       ].join('\n'),
@@ -33,10 +35,13 @@ async function main(): Promise<void> {
 
   const allTools = buildAllTools(tokens);
   for (const tool of allTools) {
-    server.tool(
+    server.registerTool(
       tool.name,
-      tool.description,
-      (tool.inputSchema as any).shape ?? {},
+      {
+        description: tool.description,
+        inputSchema: (tool.inputSchema as any).shape ?? {},
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
+      },
       async (rawInput: unknown) => {
         try {
           const input = tool.inputSchema.parse(rawInput ?? {});

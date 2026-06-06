@@ -1,66 +1,60 @@
 ---
 name: quinbook-refund
-description: Workflow for cancelling a quinbook order with the appropriate refund handling — including fees, partial refunds, and offline-vs-online payment differences. Use this when the user asks to cancel, refund, storno, or undo an order.
+description: Workflow for cancelling a quinbook order. This connector only cancels orders that have NOT received a payment; anything that would require a refund/payout is handed off to the quinbook backoffice. Use this when the user asks to cancel, refund, storno, or undo an order.
 allowed-tools:
   - mcp__quinbook__orders_get
   - mcp__quinbook__orders_cancel
-  - mcp__quinbook__orders_refund_payment
   - mcp__quinbook__contacts_add_notice
 ---
 
-# Cancel / refund workflow
+# Cancel workflow (unpaid orders only)
 
-Use this when the user wants to cancel or refund an order. Cancel triggers refund logic automatically — you usually do NOT need `orders_refund_payment` directly.
+**Important boundary:** this connector never executes outbound financial transactions. It can cancel an
+order **only if no money has been received** (`totalPayed == 0`) — cancelling such an order just releases
+the reserved slots. There is **no refund tool**. If an order already has a payment, the cancel is refused
+and the customer's cancellation/refund must be processed by staff in the quinbook backoffice.
 
 ## Step 1 — Inspect the order
 
 `orders_get({ iOrder })` shows:
 
-- `cancelled: boolean` — if already cancelled, only re-issue refund if needed
-- `payments: [...]` — each with `paymentHandler` (onsite, transfer, stripe_card, paypal, …) and `iOrderPayment`
-- `total`, `totalPayed` — how much is at stake
+- `cancelled: boolean` — if already cancelled, nothing to do
+- `total`, `totalPayed` — **the deciding field is `totalPayed`**
+- `payments: [...]` — context on how (if at all) it was paid
 - `customer.emailAddress` — for the user to confirm
 
-## Step 2 — Decide refund method
+## Step 2 — Branch on payment status
 
-Pick `refundMethod` for `orders_cancel` based on how the customer originally paid:
+- **`totalPayed == 0` (unpaid / reservation):** you can cancel it here. Continue to Step 3.
+- **`totalPayed > 0` (paid):** do **not** attempt to cancel — `orders_cancel` will refuse with an error,
+  because a refund would have to be issued. Tell the user this has to be done in the backoffice and give
+  them the link:
 
-| Original payment | Recommended `refundMethod` | Notes |
-|---|---|---|
-| Stripe / PayPal / Klarna / online | `online` | Reverses via the original provider |
-| Bank transfer | `transfer` | Backend records intent, you handle the actual transfer offline |
-| Onsite cash / POS | `onsite` or `cash` | Mark as refunded in person |
-| Coupon-paid | `coupon` | Issues a coupon for the refund amount |
-| No payment yet (`totalPayed == 0`) | `none` or omit | Nothing to refund |
+  > This order has already received a payment, so I can't cancel or refund it from here — that would
+  > move money, which this assistant isn't allowed to do. Please cancel and refund it in the backoffice:
+  > https://quinbook.com/seller/bookings/order/{iOrder}
 
-For overpaid orders (refund only the surplus, not the whole booking): set `refundType: "overpayed"`.
+  Optionally attach a CRM note (Step 5) so the handover is documented.
 
-## Step 3 — Cancellation fee
+## Step 3 — Run the cancel (unpaid only)
 
-If the user mentioned a cancellation fee (or your business policy applies one), set `fee` in the cancel body. The backend will deduct it from the refund amount:
+`orders_cancel` executes immediately — there is no dry-run. Always:
+
+1. Summarise the planned cancel to the user: order, customer, that it is unpaid
+2. Get explicit confirmation in chat
+3. Only then call `orders_cancel({ iOrder, reason })`
+
+`reason` is optional but recommended (it lands in the order's status history and the AuditLog). You do not
+need a `refundMethod` for an unpaid order — there is nothing to refund.
 
 ```
 orders_cancel({
   iOrder: 12345,
-  refundMethod: "transfer",
-  fee: 5.00,
-  reason: "Late cancellation < 24h"
+  reason: "Customer requested cancellation"
 })
 ```
 
-The fee surfaces as a separate `OrderItem` on the cancelled order with `source: "virtual"` (see `reference_cancel_fee_text.md` in the backend memory). The text is configurable per company in WebResources `name='cancel_fee'`.
-
-## Step 4 — Run the cancel
-
-`orders_cancel` executes immediately — there is no dry-run. Always:
-
-1. Summarise the planned cancel to the user: order, refund method, refund amount, any fee
-2. Get explicit confirmation in chat
-3. Only then call `orders_cancel`
-
-The response is `{ success, iOrder, refundMethod, refundAmount, fee, couponId? }`.
-
-## Step 5 — Verify
+## Step 4 — Verify
 
 `orders_get({ iOrder })` again. Expect:
 
@@ -68,14 +62,8 @@ The response is `{ success, iOrder, refundMethod, refundAmount, fee, couponId? }
 - `status: 99` (CANCELD)
 - `statuses[]` last entry: `{ status: "CANCELD", reason: <your reason text> }`
 
-## When to use `orders_refund_payment` directly
+## Step 5 — Audit trail
 
-Only when you want to refund a **single payment** without cancelling the whole order — e.g. the customer paid twice and you want to return one of the payments while keeping the booking active. The endpoint works **only for offline handlers** (cash, transfer, POS); online refunds go through their provider portal.
-
-```
-orders_refund_payment({ iOrder: 12345, iOrderPayment: 67890 })
-```
-
-## Audit trail
-
-The `reason` string lands in the order's status history *and* the AuditLog. If the user wants a longer note, additionally call `contacts_add_notice({ iCustomer, notice, type: "cancel" })` to attach a CRM note to the customer.
+The `reason` string lands in the order's status history *and* the AuditLog. If the user wants a longer
+note — or you handed a paid order off to the backoffice — additionally call
+`contacts_add_notice({ iCustomer, notice, type: "cancel" })` to attach a CRM note to the customer.

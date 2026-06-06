@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { ApiClient } from '../api-client.js';
 
 /**
@@ -53,6 +54,12 @@ export interface ToolDefinition {
   name: string;
   description: string;
   inputSchema: z.ZodTypeAny;
+  /**
+   * MCP tool annotations (hints). Required for the Anthropic directory submission:
+   * every tool must carry a human-readable `title` plus `readOnlyHint` (reads) or
+   * `destructiveHint` (writes). See docs/plans/aitools-mcp-annotation-rollout.md.
+   */
+  annotations?: ToolAnnotations;
   handler: (input: any, api: ApiClient, ctx?: ToolContext) => Promise<unknown>;
 }
 
@@ -60,6 +67,7 @@ export function defineTool<TInput extends z.ZodTypeAny>(def: {
   name: string;
   description: string;
   inputSchema: TInput;
+  annotations?: ToolAnnotations;
   handler: (input: z.infer<TInput>, api: ApiClient, ctx?: ToolContext) => Promise<unknown>;
 }): ToolDefinition {
   return def as ToolDefinition;

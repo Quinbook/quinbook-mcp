@@ -20,6 +20,7 @@ const ordersList = defineTool({
   name: 'orders_list',
   description:
     'List orders for the authenticated company (V2). Supports search, status/payment/event filters, date range and sorting.',
+  annotations: { title: 'List orders', readOnlyHint: true, openWorldHint: true },
   inputSchema: ordersListInput,
   handler: async (input, api) => api.get('/v2/order', input),
 });
@@ -31,6 +32,7 @@ const ordersGetInput = z.object({
 const ordersGet = defineTool({
   name: 'orders_get',
   description: 'Fetch a single order by id (V2), including items, payments, customer.',
+  annotations: { title: 'Get order', readOnlyHint: true, openWorldHint: true },
   inputSchema: ordersGetInput,
   handler: async (input, api) => api.get(`/v2/order/${input.iOrder}`),
 });
@@ -40,6 +42,7 @@ const cartListInput = z.object({});
 const cartList = defineTool({
   name: 'orders_cart_list',
   description: 'List all open (non-expired, non-checked-out) carts of the authenticated user.',
+  annotations: { title: 'List open carts', readOnlyHint: true, openWorldHint: true },
   inputSchema: cartListInput,
   handler: async (_input, api) => api.get('/v2/order/cart'),
 });
@@ -51,6 +54,7 @@ const cartGetInput = z.object({
 const cartGet = defineTool({
   name: 'orders_cart_get',
   description: 'Fetch a single cart by id, including items and applied coupons.',
+  annotations: { title: 'Get cart', readOnlyHint: true, openWorldHint: true },
   inputSchema: cartGetInput,
   handler: async (input, api) => api.get(`/v2/order/cart/${input.id}`),
 });
@@ -62,6 +66,7 @@ const cartCalculateInput = z.object({
 const cartCalculate = defineTool({
   name: 'orders_cart_calculate',
   description: 'Re-calculate prices and totals for a cart (read-only — does not persist).',
+  annotations: { title: 'Calculate cart totals', readOnlyHint: true, openWorldHint: true },
   inputSchema: cartCalculateInput,
   handler: async (input, api) => api.get(`/v2/order/cart/${input.id}/calculate`),
 });
