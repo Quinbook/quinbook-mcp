@@ -1,6 +1,6 @@
 # @quinbook/mcp-api
 
-MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook.com) public API as tools for AI assistants — Claude Desktop, Claude Code, IDEs and any other MCP-compatible client.
+MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook.com) API as tools for AI assistants — Claude Desktop, Claude Code, IDEs and any other MCP-compatible client.
 
 > **Status:** v0.2.8 — PKCE auth, 37 tools (each with MCP annotations), Desktop Extension (`.mcpb`) packaging. No outbound financial transactions (no refunds; paid orders cannot be cancelled here).
 
@@ -56,26 +56,27 @@ The package ships with a built-in OAuth client id — no secret to manage. Authe
 
 ## Who is this for?
 
-- **Quinbook customers** (event organisers, escape rooms, museums, sport facilities, ticketing operators) who want to talk to their booking system in plain language: *"How many bookings for Saturday's Escape Room?"*, *"Cancel order 12345 with a 5 € fee."*, *"Add a discount coupon for the kids' event next month."*
+- **Quinbook customers** (event organisers, escape rooms, museums, sport facilities, ticketing operators) who want to talk to their booking system in plain language: *"How many bookings for Saturday's Escape Room?"*, *"Cancel the unpaid order 12345."*, *"Add a discount coupon for the kids' event next month."*
 - **Power users / multi-tenant operators** managing several companies at once. Switch with `me_switch_company` and continue working in the chat.
-- **Backoffice automation** — combine quinbook-mcp with other MCP servers (filesystem, sheets, …) to build refund-batch workflows, daily-report-generators, etc.
+- **Backoffice automation** — combine quinbook-mcp with other MCP servers (filesystem, sheets, …) to build daily-report generators, booking digests, etc.
 
 ## Example prompts
 
 ```
 You: "Show me how many bookings Wunderbar GmbH had last week."
-→ KI ruft me_companies({search:"Wunderbar"}), me_switch_company(108),
+→ Claude calls me_companies({search:"Wunderbar"}), me_switch_company(108),
   orders_list({ dateFrom: "2026-04-23", dateTo: "2026-04-29" })
 
-You: "Cancel order 12345 because the customer is sick. Charge no fee."
-→ KI ruft orders_get(12345), bestätigt die Details mit dem User
-  → orders_cancel({iOrder:12345, refundMethod:"...", reason:"..."})
+You: "Cancel the unpaid order 12345 — the customer is sick."
+→ Claude calls orders_get(12345), confirms the details with the user
+  → orders_cancel({iOrder:12345, reason:"..."})
+  (paid orders are refused — those are handled in the backoffice)
 
 You: "Add a Reindeer Antler Headband to a cart for Henning, ship to his address."
-→ KI ruft contacts_search({search:"Henning"}), bestätigt → cart_add_item → cart_checkout
+→ Claude calls contacts_search({search:"Henning"}), confirms → cart_add_item → cart_checkout
 ```
 
-The included [skills](./skills) (`quinbook-booking`, `quinbook-refund`, `quinbook-multi-tenant`) describe these flows in detail so Claude follows them consistently.
+The included [skills](./skills) (`booking-workflow`, `refund-workflow`, `multi-tenant`) describe these flows in detail so Claude follows them consistently.
 
 ## Setup in Claude Desktop / Claude Code
 
