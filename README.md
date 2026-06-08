@@ -101,22 +101,39 @@ You: "Add a Reindeer Antler Headband to a cart for Henning, ship to his address.
 
 The included [skills](./skills) (`booking-workflow`, `refund-workflow`, `multi-tenant`) describe these flows in detail so Claude follows them consistently.
 
-## Setup in Claude Desktop / Claude Code
+## Installation
 
-Edit `claude_desktop_config.json` (Desktop) or `.mcp.json` (Code), add:
+### Claude Desktop (recommended)
+
+Install the **Desktop Extension**: download `quinbook-<version>.mcpb` from the
+[Releases page](https://github.com/Quinbook/quinbook-mcp/releases) and open it with Claude
+Desktop — `Settings → Extensions → Advanced settings → Install extension…`, then pick the file
+(or simply double-click the `.mcpb`). No client id, no secret, no config file to edit.
+
+### From source (developers / Claude Code)
+
+```bash
+git clone https://github.com/Quinbook/quinbook-mcp
+cd quinbook-mcp
+npm install
+npm run build
+```
+
+Then point your MCP client at the built server — e.g. in `claude_desktop_config.json` (Desktop)
+or `.mcp.json` (Claude Code):
 
 ```json
 {
   "mcpServers": {
     "quinbook": {
-      "command": "npx",
-      "args": ["-y", "@quinbook/mcp-api"]
+      "command": "node",
+      "args": ["/absolute/path/to/quinbook-mcp/dist/index.js"]
     }
   }
 }
 ```
 
-That's it — no client id, no secret. On the first tool call the server opens a browser window for the OAuth login. The user logs in **with their own quinbook user credentials**; the resulting tokens are saved to the OS credential store and auto-refreshed for the lifetime of the refresh token (~30 days). No further interactive login is required during that window.
+That's it — no client id, no secret. On the first tool call the server opens a browser window for the OAuth login. You log in **with your own quinbook user credentials**; the resulting tokens are saved to the OS credential store and auto-refreshed for the lifetime of the refresh token (~30 days). No further interactive login is required during that window.
 
 ## Skills
 
