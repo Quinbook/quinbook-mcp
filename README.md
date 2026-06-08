@@ -101,17 +101,10 @@ The repo ships with three companion skills that teach Claude how to use the tool
 | Skill | What it covers |
 |---|---|
 | [`booking-workflow`](./skills/booking-workflow.md) | slots → cart → optional coupon → calculate → checkout → verify, with confirm-before-write discipline |
-| [`refund-workflow`](./skills/refund-workflow.md) | `orders_cancel` with refund-method matrix per payment type, fees, partial refunds |
+| [`refund-workflow`](./skills/refund-workflow.md) | cancel workflow for unpaid orders via `orders_cancel`; paid orders are routed to the backoffice (no outbound money movement) |
 | [`multi-tenant`](./skills/multi-tenant.md) | when to call `me_whoami`, how to switch companies, safety net for cross-tenant operations |
 
 Drop them into `~/.claude/skills/` (or your IDE's equivalent) so Claude reads the workflow before reaching for tools.
-
-## Roadmap
-
-- [x] **0.1** — initial release: 36 tools, OAuth polling-callback, multi-tenancy
-- [ ] **0.2** — PKCE (RFC 7636) instead of bundled client secret; tests + CI; smithery.ai listing
-- [ ] **0.3** — `shifts_*` tools (employee skills, workload, historic shifts) wrapping the AiTools backend; selectable LLM-friendly compact projections for more endpoints
-- [ ] **0.4** — write tools for shifts (assignment changes), survey statistics; English UI translations of error messages
 
 ## Architecture
 
