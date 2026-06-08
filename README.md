@@ -13,6 +13,29 @@ MCP (Model Context Protocol) server that exposes the [quinbook](https://quinbook
 - Multi-tenant: per-company token cache, switch via `me_switch_company`
 - Write tools execute immediately — the model is expected to confirm with the user first (the bundled skills enforce this)
 
+## Compliance & financial boundary
+
+This connector is built to comply with AI marketplace and directory policies that prohibit
+autonomous **financial-transaction execution** — including the [Anthropic Software Directory
+Policy](https://support.claude.com/articles/13145358-anthropic-software-directory-policy)
+(listed under *Prohibited Behaviors*) and the equivalent restrictions of other AI providers.
+
+**No tool in this connector moves money.** There is no capability to charge a payment card,
+initiate a transfer, capture an electronic payment, or issue a refund:
+
+- **No refund tool** — refunding a payment is not exposed by this connector at all.
+- **`orders_cancel` refuses paid orders** — any order with a received payment
+  (`totalPayed > 0`) is rejected with a pointer to the backoffice; only unpaid orders can be
+  cancelled here.
+- **`orders_record_payment` books offline payments only** (cash / bank transfer / POS) — it
+  records money received out-of-band and never charges a card.
+- **`cart_checkout` creates a booking record** — it does not itself capture an electronic
+  payment; card/online payments are completed through quinbook's own payment flow, outside
+  this connector.
+
+Anything that moves actual funds (charges, captures, refunds, chargebacks) is performed by
+authorised staff in the quinbook backoffice, not by this connector.
+
 ## Tools (37)
 
 ### Identity & Multi-Tenancy
