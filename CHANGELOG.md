@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.9] - 2026-06-08
+
+Documentation and guidance polish ahead of the Anthropic directory submission. No changes to the
+tool/API surface; one assistant-instruction addition.
+
+### Added
+- **"Compliance & financial boundary" section in the README**, stating per-tool that the connector
+  executes no outbound financial transactions, aligned with the Anthropic Software Directory Policy.
+- **Hand-off instruction**: when asked for a disallowed money action (refund, or cancelling a paid
+  order), the assistant now returns the backoffice booking link to click/copy instead of attempting
+  it — the default even without the bundled skill installed.
+
+### Changed
+- README now documents the `.mcpb` Desktop Extension install path (download from Releases, open in
+  Claude Desktop) and a from-source option, instead of the npm/`npx` path.
+- Removed the stale Roadmap section; fixed example prompts and the `refund-workflow` skill
+  description that still referenced refund parameters.
+
 ## [0.2.8] - 2026-06-06
 
 Directory-readiness release: brings the connector in line with the Anthropic software

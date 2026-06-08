@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: 'quinbook-mcp',
-      version: '0.2.8',
+      version: '0.2.9',
     },
     {
       instructions: [
