@@ -1,0 +1,14 @@
+services:
+  quinbook-mcp-remote:
+    build: .
+    image: quinbook-mcp-remote:latest
+    container_name: quinbook-mcp-remote
+    restart: unless-stopped
+    ports:
+      # host:container — HAProxy backend_mcp points at <dockerhost-ip>:8787
+      - "8787:8787"
+    environment:
+      PORT: "8787"
+      # Test phase points at dev/api3; switch to https://api.quinbook.com for prod.
+      QUINBOOK_API_BASE_URL: "https://api3.quinbook.com"
+      MCP_PUBLIC_URL: "https://mcp.quinbook.com"
