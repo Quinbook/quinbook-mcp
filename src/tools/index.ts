@@ -7,9 +7,9 @@ import { contactTools } from './contacts.js';
 import { buildMeTools } from './me.js';
 import { cartWriteTools } from './cart_write.js';
 import { orderWriteTools } from './orders_write.js';
-import { TokenManager } from '../auth.js';
+import { ITokenManager } from '../auth.js';
 
-export function buildAllTools(tokens: TokenManager): ToolDefinition[] {
+export function buildAllTools(tokens: ITokenManager): ToolDefinition[] {
   return [
     ...buildMeTools(tokens),
     ...slotTools,

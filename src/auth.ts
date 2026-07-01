@@ -99,13 +99,29 @@ export interface TokenSet {
   expires_at: number;
 }
 
-interface JwtClaims {
+export interface JwtClaims {
   icompany?: string;
   g?: string;
   session?: string;
   exp?: number;
   nbf?: number;
   [k: string]: unknown;
+}
+
+/**
+ * The subset of token-management behaviour that ApiClient and the tools depend
+ * on. The local connector backs this with {@link TokenManager} (keychain-backed,
+ * interactive login). The remote HTTP connector backs it with a per-session,
+ * pass-through implementation that holds the bearer Claude sends (see
+ * token-session.ts). Keeping this an interface lets the tool layer stay
+ * identical across both transports.
+ */
+export interface ITokenManager {
+  getAccessToken(): Promise<string>;
+  getActiveCompany(): Promise<number | null>;
+  getCurrentClaims(): Promise<JwtClaims>;
+  forceRefresh(): Promise<void>;
+  switchCompany(targetCompanyId: number): Promise<TokenSet>;
 }
 
 export function decodeJwt(token: string): JwtClaims {
@@ -304,7 +320,7 @@ async function interactiveLogin(cfg: Config): Promise<TokenSet> {
   return exchangeCode(cfg, code, redirectUri, pkce.verifier);
 }
 
-export class TokenManager {
+export class TokenManager implements ITokenManager {
   private cached: TokenSet | null = null;
   private cachedCompany: number | null = null;
   private inflight: Promise<TokenSet> | null = null;

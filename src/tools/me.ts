@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { defineTool, ToolDefinition } from './types.js';
-import { TokenManager, decodeJwt } from '../auth.js';
+import { ITokenManager, decodeJwt } from '../auth.js';
 
 const meWhoamiInput = z.object({});
 
-function buildWhoami(tokens: TokenManager): ToolDefinition {
+function buildWhoami(tokens: ITokenManager): ToolDefinition {
   return defineTool({
     name: 'me_whoami',
     description:
@@ -57,7 +57,7 @@ const meSwitchCompanyInput = z.object({
   iCompany: z.coerce.number().int().positive().describe('Target company id (i_customer of the company)'),
 });
 
-function buildSwitchCompany(tokens: TokenManager): ToolDefinition {
+function buildSwitchCompany(tokens: ITokenManager): ToolDefinition {
   return defineTool({
     name: 'me_switch_company',
     description:
@@ -82,6 +82,6 @@ function buildSwitchCompany(tokens: TokenManager): ToolDefinition {
   });
 }
 
-export function buildMeTools(tokens: TokenManager): ToolDefinition[] {
+export function buildMeTools(tokens: ITokenManager): ToolDefinition[] {
   return [buildWhoami(tokens), meCompanies, buildSwitchCompany(tokens)];
 }

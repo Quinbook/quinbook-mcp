@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { Config } from './config.js';
-import { TokenManager } from './auth.js';
+import { ITokenManager } from './auth.js';
 import { RateLimiter } from './rate-limiter.js';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -12,7 +12,7 @@ export class ApiClient {
 
   constructor(
     private readonly cfg: Config,
-    private readonly tokens: TokenManager,
+    private readonly tokens: ITokenManager,
   ) {
     this.limiter = new RateLimiter(8);
     this.http = axios.create({
