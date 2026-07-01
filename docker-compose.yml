@@ -9,6 +9,8 @@ services:
       - "8787:8787"
     environment:
       PORT: "8787"
-      # Test phase points at dev/api3; switch to https://api.quinbook.com for prod.
-      QUINBOOK_API_BASE_URL: "https://api3.quinbook.com"
+      # Production: talks to the live CoreApi. The CoreApi OAuth changes
+      # (well-known metadata, /v1/auth/register, code_verifier fix, auth_mode)
+      # MUST be deployed to prod first, otherwise the OAuth flow breaks.
+      QUINBOOK_API_BASE_URL: "https://api.quinbook.com"
       MCP_PUBLIC_URL: "https://mcp.quinbook.com"
